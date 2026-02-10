@@ -33,10 +33,3 @@ func Connect() error {
 	fmt.Println("Postgres pool connected")
 	return nil
 }
-
-func Close() {
-	if Pool != nil {
-		Pool.Close()
-		fmt.Println("Postgres pool closed")
-	}
-}

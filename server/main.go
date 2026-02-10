@@ -12,7 +12,7 @@ func main() {
 		log.Fatalf("DB connection error: %v", err)
 	}
 
-	defer db.Close()
+	defer db.Pool.Close()
 
 	fmt.Println("Server starting...")
 
