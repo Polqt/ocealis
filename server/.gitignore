@@ -1,0 +1,66 @@
+# Go build
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Output directories
+bin/
+obj/
+
+# Dependency directories
+vendor/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+
+# sqlc generated code
+/tutorial/
+
+# Migration logs
+*.log
+
+# Misc
+*.DS_Store
+
+# Node/JS (if any)
+node_modules/
+
+# Air (live reload)
+.air.toml
+
+# Temporary files
+tmp/
+
+# Ignore client build
+client/dist/
+
+# Ignore database dumps
+*.dump
+*.sql
+
+# Ignore coverage
+coverage/
+*.out
+
+# Ignore files from tests
+*.test
+
+# Ignore files from Docker
+Dockerfile
+.dockerignore
+
+# Ignore files from Prisma
+prisma/
+
+# Ignore files from pnpm
+pnpm-lock.yaml
