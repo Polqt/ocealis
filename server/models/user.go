@@ -1,8 +1,10 @@
 package models
 
+import "time"
+
 type User struct {
-	id    		 int64
-	nickname 	 string
-	avatar_url 	 string
-	created_at   int64
+	ID        int64     `json:"id"`
+	Nickname  string    `json:"nickname"`
+	AvatarURL string    `json:"avatar_url"`
+	CreatedAt time.Time `json:"created_at"`
 }
