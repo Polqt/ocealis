@@ -1,14 +1,16 @@
 package models
 
+import "time"
+
 type Bottle struct {
-	id 	   				int64
-	sender_id   		int64
-	message_test 		string
-	bottle_style 		int
-	start_lat  			float64
-	start_lng  			float64
-	hops 	   			int
-	scheduled_release 	int64
-	is_release			bool
-	created_at   		int64
+	ID               int64     `json:"id"`
+	SenderID         int64     `json:"sender_id"`
+	MessageText      string    `json:"message_text"`
+	BottleStyle      int       `json:"bottle_style"`
+	StartLat         float64   `json:"start_lat"`
+	StartLng         float64   `json:"start_lng"`
+	Hops             int       `json:"hops"`
+	ScheduledRelease time.Time `json:"scheduled_release"`
+	IsReleased       bool      `json:"is_released"`
+	CreatedAt        time.Time `json:"created_at"`
 }

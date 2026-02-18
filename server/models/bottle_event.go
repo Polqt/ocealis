@@ -1,10 +1,12 @@
 package models
 
+import "time"
+
 type BottleEvent struct {
-	id         	int64
-	bottle_id  	int64
-	event_type 	string
-	lat        	float64
-	lgn        	float64
-	created_at 	int64
+    ID        int64     `json:"id"`
+    BottleID  int64     `json:"bottle_id"`
+    EventType string    `json:"event_type"`
+    Lat       float64   `json:"lat"`
+    Lng       float64   `json:"lng"`
+    CreatedAt time.Time `json:"created_at"`
 }
