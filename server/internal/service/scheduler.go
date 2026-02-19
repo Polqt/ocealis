@@ -21,7 +21,7 @@ func NewScheduler(drift DriftService, log *zap.Logger) *Scheduler {
 	}
 }
 
-func (s *Scheduler) Start() {
+func (s *Scheduler) Start(ctx context.Context) {
 	_, err := s.cron.AddFunc("*/15 * * * *", func() {
 		if err := s.drift.Tick(context.Background()); err != nil {
 			s.log.Error("drift tick failed", zap.Error(err))
