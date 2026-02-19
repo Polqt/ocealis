@@ -1,97 +1,72 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
+	"time"
 
-	"github.com/Polqt/ocealis/api"
 	"github.com/Polqt/ocealis/db"
-	"github.com/Polqt/ocealis/db/ocealis"
-	"github.com/Polqt/ocealis/services"
+	dbGen "github.com/Polqt/ocealis/db/ocealis"
+	"github.com/Polqt/ocealis/util"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Logger
+	log, _ := zap.NewProduction()
+	defer log.Sync()
+
+	// Config
+	_ = godotenv.Load()
+
 	if err := db.Connect(); err != nil {
-		log.Fatalf("DB connection error: %v", err)
+		log.Fatal("DB connection error", zap.Error(err))
 	}
 
 	defer db.Pool.Close()
 
-	fmt.Println("Server starting...")
+	queries := dbGen.New(db.Pool)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Repositories
 
-	queries := ocealis.New(db.Pool)
+	// Services
 
-	// Initialize services
-	bottleService := services.NewBottleService(queries)
-	// driftService := services.NewDriftService(queries)
+	// Websocket
 
-	// Initialize handlers
-	healthHandler := api.NewHealthHandler(queries)
-	bottleHandler := api.NewBottleHandler(bottleService)
+	// Scheduler
 
-	// Initialize fiber
+	// Handlers
+
+	// Fiber app
 	app := fiber.New(fiber.Config{
+		AppName:       "Ocealis v1",
 		CaseSensitive: true,
 		StrictRouting: true,
 		ServerHeader:  "Ocealis",
-		AppName:       "Ocealis v1",
+		ReadTimeout:   10 * time.Second,
+		WriteTimeout:  10 * time.Second,
+		ErrorHandler: func(c fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			msg := "Internal Server Error"
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			return c.Status(code).JSON(fiber.Map{"error": msg})
+		},
 	})
 
-	// Middleware
-	app.Use(logger.New())
+	app.Use(recover.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: []string{os.Getenv("CORS_ALLOWED_ORIGINS")},
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept"},
+		AllowOrigins: []string{util.EnvString("CORS_ALLOWED_ORIGINS", "http://localhost:3000")},
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
 	}))
 
 	// Routes
-	apiV1 := app.Group("/api")
+	
 
-	api.RegisterHealthRoutes(apiV1, healthHandler)
-	api.RegisterBottleRoutes(apiV1, bottleHandler)
+	// Shutdown
 
-	// Get port
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-c
-		fmt.Println("Shutting down...")
-		cancel()
-		_ = app.Shutdown()
-	}()
-
-	if err := app.Listen(":" + port); err != nil {
-		log.Fatalf("Failed to start server:%v", err)
-	}
-
-	// Root Endpoint
-	app.Get("/", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"service": "Ocealis API",
-			"version": "1.0.0",
-			"status": "running",
-			"endpoints": fiber.Map{
-				"health": "GET /api/health",
-				"bottles": "GET /api/bottles",
-			},
-		})
-	})
 }
-

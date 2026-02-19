@@ -9,6 +9,8 @@ type Bottle struct {
 	BottleStyle      int       `json:"bottle_style"`
 	StartLat         float64   `json:"start_lat"`
 	StartLng         float64   `json:"start_lng"`
+	CurrentLat       float64   `json:"current_lat"`
+	CurrentLng       float64   `json:"current_lng"`
 	Hops             int       `json:"hops"`
 	ScheduledRelease time.Time `json:"scheduled_release"`
 	IsReleased       bool      `json:"is_released"`
