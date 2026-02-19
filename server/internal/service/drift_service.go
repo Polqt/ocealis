@@ -58,7 +58,7 @@ func NewDriftService(
 }
 
 func (s *driftService) Tick(ctx context.Context) error {
-	s.log.Info("drift ticket fired")
+	s.log.Info("drift tick fired")
 	// Wire in ListActive once it add that query to sqlc.
 	// For now the scheduler runs - you'll see the log every 15 minutes, but it won't actually do anything until ListActive is implemented.
 	return nil
