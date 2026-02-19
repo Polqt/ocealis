@@ -115,7 +115,7 @@ func (s *bottleService) GetJourney(ctx context.Context, bottleID int32) (*domain
 		}
 	}
 
-	return &domain.Journey{Bottle: bottle, Event: events}, nil
+	return &domain.Journey{Bottle: bottle, Events: events}, nil
 }
 
 func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottleInput) (*domain.Journey, error) {
