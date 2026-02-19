@@ -28,5 +28,5 @@ type Bottle struct {
 
 type Journey struct {
 	Bottle *Bottle `json:"bottle"`
-	Events []Event `json:"events"`
+	Event []EventType `json:"events"`
 }
