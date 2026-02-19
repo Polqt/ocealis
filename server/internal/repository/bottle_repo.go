@@ -9,7 +9,7 @@ import (
 )
 
 type CreateBottleParams struct {
-	senderID         int32
+	SenderID         int32
 	MessageText      string
 	BottleStyle      int32
 	StartLat         float64
@@ -28,7 +28,7 @@ type postgresBottleRepo struct {
 
 func (r *postgresBottleRepo) Create(ctx context.Context, params CreateBottleParams) (*domain.Bottle, error) {
 	row, err := r.q.CreateBottle(ctx, ocealis.CreateBottleParams{
-		SenderID:         pgtype.Int4{Int32: params.senderID, Valid: true},
+		SenderID:         pgtype.Int4{Int32: params.SenderID, Valid: true},
 		MessageText:      params.MessageText,
 		BottleStyle:      pgtype.Int4{Int32: params.BottleStyle, Valid: true},
 		StartLat:         pgtype.Float8{Float64: params.StartLat, Valid: true},
