@@ -11,12 +11,12 @@ type MessageType string
 
 const (
 	MsgBottleDrift      MessageType = "bottle_drift"
-	MSgBottleDiscovered MessageType = "bottle_discovered"
-	MSGBottleReleased   MessageType = "bottle_released"
+	MsgBottleDiscovered MessageType = "bottle_discovered"
+	MsgBottleReleased   MessageType = "bottle_released"
 )
 
 // Message is the json envelope every connected client receives.
-// three.js reads the `type` field to knwow how to handle the payload
+// three.js reads the `type` field to know how to handle the payload
 type Message struct {
 	Type    MessageType `json:"type"`
 	Payload any         `json:"payload"`
@@ -51,11 +51,11 @@ func (b *Broadcaster) BroadcastDrift(payload DriftPayload) {
 }
 
 func (b *Broadcaster) BroadcastDiscovered(bottleID int32) {
-	b.broadcast(MSgBottleDiscovered, map[string]int32{"bottle_id": bottleID})
+	b.broadcast(MsgBottleDiscovered, map[string]int32{"bottle_id": bottleID})
 }
 
 func (b *Broadcaster) BroadcastReleased(bottleID int32) {
-	b.broadcast(MSGBottleReleased, map[string]int32{"bottle_id": bottleID})
+	b.broadcast(MsgBottleReleased, map[string]int32{"bottle_id": bottleID})
 }
 
 func (b *Broadcaster) broadcast(msgType MessageType, payload any) {
