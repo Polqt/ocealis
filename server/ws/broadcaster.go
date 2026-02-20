@@ -39,7 +39,7 @@ type Broadcaster struct {
 	log *zap.Logger
 }
 
-func NewBroadcasteR(hub *Hub, log *zap.Logger) *Broadcaster {
+func NewBroadcaster(hub *Hub, log *zap.Logger) *Broadcaster {
 	return &Broadcaster{
 		hub: hub,
 		log: log,

@@ -28,8 +28,18 @@ func (h *Hub) Unregister(c *Client) {
 
 // Broadcast sends a message to every connected clients.
 func (h *Hub) Broadcast(msg []byte) {
+	// Take a snapshot of current clients under read lock,
+	// so that we can send messages without holding the lock,
+	// allowing new clients to register or unregister concurrently.
 	h.mu.RLock()
-	defer h.mu.RUnlock()
+	clients := make([]*Client, 0, len(h.clients))
+	for c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+
+	var showClients []*Client
+
 	for c := range h.clients {
 		select {
 		case c.send <- msg:
@@ -37,7 +47,16 @@ func (h *Hub) Broadcast(msg []byte) {
 		default:
 			// If the client's send channel is full, we can choose to drop the message or handle it as needed.
 			// For now, we'll just skip sending to this client.
+			showClients = append(showClients, c)
 		}
+	}
+
+	// Unregister clients that are not responsive (send channel is full).
+	for _, c := range showClients {
+		// Optionally log slow/stuck clients before unregistering.
+		// Example (requires a logger or the standard log package):
+		// log.Printf("ws hub: unregistering slow client %v: send buffer full", c)
+		h.Unregister(c)
 	}
 }
 
