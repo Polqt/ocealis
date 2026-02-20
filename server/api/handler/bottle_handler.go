@@ -113,7 +113,7 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 
 	var req DiscoverBottleRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invald request body")
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
 	if err := h.validate.Struct(req); err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
