@@ -61,8 +61,8 @@ func (h *BottleHandler) CreateBottle(c fiber.Ctx) error {
 		SenderID:    userID,
 		MessageText: req.MessageText,
 		BottleStyle: req.BottleStyle,
-		StartLat:    req.StartLat,
-		StartLng:    req.StartLng,
+		StartLat:    *req.StartLat,
+		StartLng:    *req.StartLng,
 		ReleaseAt:   req.ReleaseAt,
 	})
 	if err != nil {

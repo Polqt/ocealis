@@ -53,3 +53,17 @@ func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 		"token": token,
 	})
 }
+
+func (h *UserHandler) GetUser(c fiber.Ctx) error {
+	userID, ok := middleware.UserIDFromCtx(c)
+	if !ok {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid user id")
+	}
+
+	user, err := h.svc.GetUser(c.Context(), userID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "user not found")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(user)
+}
