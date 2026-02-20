@@ -29,7 +29,7 @@ func RegisterRoutes(app *fiber.App, h Handlers, log *zap.Logger) {
 	// User routes
 	users := v1.Group("/users")
 	users.Post("/", middleware.StrictRateLimit(), h.User.CreateUser)
-	users.Post("/:id", middleware.Auth(), h.User.GetUser)
+	users.Get("/:id", middleware.Auth(), h.User.GetUser)
 
 	// Bottle routes
 	bottles := v1.Group("/bottles", middleware.Auth())
