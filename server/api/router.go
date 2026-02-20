@@ -37,6 +37,6 @@ func RegisterRoutes(app *fiber.App, h Handlers, log *zap.Logger) {
 	bottles.Get("/:id", h.Bottle.GetBottle)
 	bottles.Get("/:id/journey", h.Bottle.GetJourney)
 	bottles.Get("/:id/events", h.Event.GetBottleEvents)
-	bottles.Get("/:id/discover", h.Bottle.DiscoverBottle)
-	bottles.Get("/:id/release", h.Bottle.ReleaseBottle)
+	bottles.Post("/:id/discover", h.Bottle.DiscoverBottle)
+	bottles.Post("/:id/release", h.Bottle.ReleaseBottle)
 }
