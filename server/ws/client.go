@@ -35,6 +35,7 @@ func NewClient(hub *Hub, conn *websocket.Conn, log *zap.Logger) *Client {
 // Run starts both pumps. Call this after creating the client.
 // Blocks until the client connection is closed.
 func (c *Client) Run() {
+	c.hub.Register(c)
 	go c.writePump()
 	c.readPump()
 }
