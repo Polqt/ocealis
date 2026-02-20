@@ -11,7 +11,7 @@ func NewHealthHandler() *HealthHandler {
 func (h *HealthHandler) Check(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status":  "ok",
-		"servie":  "ocealis",
+		"service":  "ocealis",
 		"version": "1.0.0",
 	})
 }

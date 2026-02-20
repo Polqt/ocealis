@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"os"
 	"strings"
 	"time"
 
@@ -11,11 +12,15 @@ import (
 
 const (
 	ctxUserIDKey  = "userID"
-	tokenDuration = 24 * 60 * 60 // 24 hours in seconds
+	tokenDuration = 24 * time.Hour
 )
 
 func jwtSecret() string {
-	return util.EnvString("JWT_SECRET", "default")
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		panic("JWT_SECRET environment variable is required")
+	}
+	return secret
 }
 
 // Issue Token generates a JWT token for an anonymous user and returns it.
