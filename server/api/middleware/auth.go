@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Polqt/ocealis/util"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
