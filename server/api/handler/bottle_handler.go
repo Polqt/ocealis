@@ -14,8 +14,8 @@ import (
 type createBottleRequest struct {
 	MessageText string     `json:"message_text" validate:"required,min=1,max=1000"`
 	BottleStyle int32      `json:"bottle_style"  validate:"min=0,max=9"`
-	StartLat    float64    `json:"start_lat"     validate:"required,min=-90,max=90"`
-	StartLng    float64    `json:"start_lng"     validate:"required,min=-180,max=180"`
+	StartLat    *float64   `json:"start_lat"     validate:"required,min=-90,max=90"`
+	StartLng    *float64   `json:"start_lng"     validate:"required,min=-180,max=180"`
 	ReleaseAt   *time.Time `json:"release_at"`
 }
 
@@ -113,7 +113,7 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 
 	var req DiscoverBottleRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invald request body")
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
 	if err := h.validate.Struct(req); err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())

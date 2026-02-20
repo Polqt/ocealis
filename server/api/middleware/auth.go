@@ -31,7 +31,7 @@ func IssueToken(userID int32) (string, error) {
 		"exp":     time.Now().Add(tokenDuration).Unix(),
 		"iat":     time.Now().Unix(),
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(jwtSecret()))
 }
 
