@@ -53,3 +53,17 @@ func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 		"token": token,
 	})
 }
+
+func (h *UserHandler) GetUser(c fiber.Ctx) error {
+	userID, err := parseID(c, "id")
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid user id")
+	}
+
+	user, err := h.svc.GetUser(c.Context(), userID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "could not get user")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(user)
+}
