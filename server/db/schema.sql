@@ -12,7 +12,10 @@ CREATE TABLE bottles (
     bottle_style INTEGER,
     start_lat DOUBLE PRECISION,
     start_lng DOUBLE PRECISION,
+    current_lat DOUBLE PRECISION,
+    current_lng DOUBLE PRECISION,
     hops INTEGER DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'drifting',
     scheduled_release TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     is_release BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
