@@ -9,13 +9,13 @@ import (
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
 	"github.com/Polqt/ocealis/util"
+	"github.com/Polqt/ocealis/ws"
 	"go.uber.org/zap"
 )
 
 const DriftTickHours = 0.25 // 15 minutes = 6 hours simulated ocean drift
 
-
-// CurrentZone maps a region of the ocean to a dominant current direction and speed. 
+// CurrentZone maps a region of the ocean to a dominant current direction and speed.
 // This is a simplified gyre model, real ocean currents follow these
 // Broad circular patterns (gyres) driven by wind and the Coriolis effect, but with lots of local variation.
 type currentZone struct {
@@ -46,21 +46,43 @@ type DriftService interface {
 type driftService struct {
 	bottles repository.BottleRepository
 	events  repository.EventRepository
+	bc      *ws.Broadcaster
 	log     *zap.Logger
 }
 
 func NewDriftService(
 	bottles repository.BottleRepository,
 	events repository.EventRepository,
+	bc *ws.Broadcaster,
 	log *zap.Logger,
 ) DriftService {
-	return &driftService{bottles: bottles, events: events, log: log}
+	return &driftService{bottles: bottles, events: events, bc: bc, log: log}
 }
 
 func (s *driftService) Tick(ctx context.Context) error {
 	s.log.Info("drift tick fired")
-	// Wire in ListActive once it add that query to sqlc.
-	// For now the scheduler runs - you'll see the log every 15 minutes, but it won't actually do anything until ListActive is implemented.
+
+	activeBots, err := s.bottles.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("list active bottles: %w", err)
+	}
+
+	for i := range activeBots {
+		b := &activeBots[i]
+		if err := s.driftOne(ctx, b, func(e domain.BottleEvent) {
+			s.bc.BroadcastDrift(ws.DriftPayload{
+				BottleID:    e.BottleID,
+				Lat:         e.Lat,
+				Lng:         e.Lng,
+				Hops:        b.Hops,
+				BottleStyle: b.BottleStyle,
+				Timestamp:   e.CreatedAt,
+			})
+		}); err != nil {
+			// Log and continue — one bad bottle doesn’t stop the others.
+			s.log.Error("driftOne failed", zap.Int32("bottle_id", b.ID), zap.Error(err))
+		}
+	}
 	return nil
 }
 
@@ -73,15 +95,19 @@ func (s *driftService) driftOne(ctx context.Context, bottle *domain.Bottle, onDr
 
 	newLat, newLng := util.ApplyDrift(bottle.CurrentLat, bottle.CurrentLng, speed, bearing, DriftTickHours)
 
+	// Bug fix: drift events must be typed "drift", not "discovered".
 	event, err := s.events.Create(ctx, repository.CreateEventParams{
 		BottleID:  bottle.ID,
-		EventType: domain.EventTypeDiscovered,
+		EventType: domain.EventTypeDrift,
 		Lat:       newLat,
 		Lng:       newLng,
 	})
 	if err != nil {
 		return fmt.Errorf("drift bottle %d: %w", bottle.ID, err)
 	}
+
+	// Persist the new coordinates so the next tick starts from the right position.
+	_, _ = s.bottles.UpdatePosition(ctx, bottle.ID, newLat, newLng, domain.BottleStatusDrifting)
 
 	if onDrift != nil {
 		onDrift(*event)

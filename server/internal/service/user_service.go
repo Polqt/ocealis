@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
 )
 
-var ErrUserNotFound = "user not found"
+var ErrUserNotFound = errors.New("user not found")
 
 type CreateUserInput struct {
 	Nickname  string

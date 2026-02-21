@@ -7,7 +7,7 @@ import (
 
 	"github.com/Polqt/ocealis/api/middleware"
 	"github.com/Polqt/ocealis/internal/service"
-	"github.com/go-playground/validator"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 )
 

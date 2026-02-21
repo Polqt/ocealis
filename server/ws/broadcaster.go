@@ -22,9 +22,9 @@ type Message struct {
 	Payload any         `json:"payload"`
 }
 
-// Drift payload is consumed by three.js to update the position of the bottle in the 3D world.
+// DriftPayload is consumed by three.js to update the position of the bottle in the 3D world.
 type DriftPayload struct {
-	BottleID    string    `json:"bottle_id"`
+	BottleID    int32     `json:"bottle_id"`
 	Lat         float64   `json:"lat"`
 	Lng         float64   `json:"lng"`
 	Hops        int32     `json:"hops"`
