@@ -7,6 +7,7 @@ import (
 
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
+	"github.com/Polqt/ocealis/ws"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -37,19 +38,21 @@ type BottleService interface {
 	GetBottle(ctx context.Context, id int32) (*domain.Bottle, error)
 	GetJourney(ctx context.Context, bottleID int32) (*domain.Journey, error)
 	DiscoverBottle(ctx context.Context, input DiscoverBottleInput) (*domain.Journey, error)
-	ReleaseBottle(ctx context.Context, bottleID, userID int32, lat, lang float64) (*domain.Bottle, error)
+	ReleaseBottle(ctx context.Context, bottleID, userID int32, lat, lng float64) (*domain.Bottle, error)
 }
 
 type bottleService struct {
 	bottles repository.BottleRepository
 	events  repository.EventRepository
+	bc      *ws.Broadcaster
 }
 
-func NewBottleService(bottles repository.BottleRepository, events repository.EventRepository) BottleService {
-	return &bottleService{
-		bottles: bottles,
-		events:  events,
-	}
+func NewBottleService(
+	bottles repository.BottleRepository,
+	events repository.EventRepository,
+	bc *ws.Broadcaster,
+) BottleService {
+	return &bottleService{bottles: bottles, events: events, bc: bc}
 }
 
 func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInput) (*domain.Bottle, error) {
@@ -73,9 +76,10 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 		return nil, err
 	}
 
+	// Bug fix: first-creation event is "released", not "re_released".
 	_, err = s.events.Create(ctx, repository.CreateEventParams{
 		BottleID:  bottle.ID,
-		EventType: domain.EventTypeReReleased,
+		EventType: domain.EventTypeReleased,
 		Lat:       input.StartLat,
 		Lng:       input.StartLng,
 	})
@@ -83,8 +87,8 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 		return nil, err
 	}
 
+	s.bc.BroadcastReleased(bottle.ID)
 	return bottle, nil
-
 }
 
 func (s *bottleService) GetBottle(ctx context.Context, id int32) (*domain.Bottle, error) {
@@ -92,7 +96,6 @@ func (s *bottleService) GetBottle(ctx context.Context, id int32) (*domain.Bottle
 	if err != nil {
 		return nil, ErrBottleNotFound
 	}
-
 	return bottle, nil
 }
 
@@ -107,14 +110,8 @@ func (s *bottleService) GetJourney(ctx context.Context, bottleID int32) (*domain
 		return nil, err
 	}
 
-	for _, e := range events {
-		if e.EventType == domain.EventTypeDrift || e.EventType == domain.EventTypeReReleased {
-			bottle.CurrentLat = e.Lat
-			bottle.CurrentLng = e.Lng
-			break
-		}
-	}
-
+	// current_lat/current_lng are now persisted in the DB so the bottle
+	// struct already reflects the real position; no event-walk needed.
 	return &domain.Journey{Bottle: bottle, Events: events}, nil
 }
 
@@ -142,7 +139,12 @@ func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottle
 		return nil, err
 	}
 
-	bottle.Status = domain.BottleStatusDiscovered
+	// Persist status change to DB (was only mutating in-memory before).
+	if _, err = s.bottles.UpdateStatus(ctx, bottle.ID, domain.BottleStatusDiscovered); err != nil {
+		return nil, err
+	}
+
+	s.bc.BroadcastDiscovered(bottle.ID)
 	return s.GetJourney(ctx, input.BottleID)
 }
 
@@ -152,9 +154,10 @@ func (s *bottleService) ReleaseBottle(ctx context.Context, bottleID, userID int3
 		return nil, ErrBottleNotFound
 	}
 
+	// Bug fix: event type for re-release is "re_released", not "discovered".
 	_, err = s.events.Create(ctx, repository.CreateEventParams{
 		BottleID:  bottle.ID,
-		EventType: domain.EventTypeDiscovered,
+		EventType: domain.EventTypeReReleased,
 		Lat:       lat,
 		Lng:       lng,
 	})
@@ -162,9 +165,12 @@ func (s *bottleService) ReleaseBottle(ctx context.Context, bottleID, userID int3
 		return nil, err
 	}
 
-	bottle.Hops++
-	bottle.Status = domain.BottleStatusDrifting
-	bottle.CurrentLat = lat
-	bottle.CurrentLng = lng
-	return bottle, nil
+	// Persist new position and status to DB (was only mutating in-memory before).
+	updated, err := s.bottles.UpdatePosition(ctx, bottle.ID, lat, lng, domain.BottleStatusDrifting)
+	if err != nil {
+		return nil, err
+	}
+
+	s.bc.BroadcastReleased(updated.ID)
+	return updated, nil
 }
