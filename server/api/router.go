@@ -1,8 +1,11 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/Polqt/ocealis/api/handler"
 	"github.com/Polqt/ocealis/api/middleware"
+	"github.com/Polqt/ocealis/ws"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
@@ -14,7 +17,8 @@ type Handlers struct {
 	Event  *handler.EventHandler
 }
 
-func RegisterRoutes(app *fiber.App, h Handlers, log *zap.Logger) {
+// RegisterRoutes wires all HTTP and WebSocket routes onto app.
+func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 	app.Get("/api/health", h.Health.Check)
 
 	app.Get("/", func(c fiber.Ctx) error {
@@ -23,6 +27,15 @@ func RegisterRoutes(app *fiber.App, h Handlers, log *zap.Logger) {
 			"version": "1.0.0",
 		})
 	})
+
+	// WebSocket — upgrade check then stream drift events to connected clients.
+	app.Use("/ws", func(c fiber.Ctx) error {
+		if strings.EqualFold(c.Get("Upgrade"), "websocket") {
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+	app.Get("/ws", ws.NewDriftHandler(hub, log))
 
 	v1 := app.Group("/api/v1")
 

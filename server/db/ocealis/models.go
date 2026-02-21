@@ -15,7 +15,10 @@ type Bottle struct {
 	BottleStyle      pgtype.Int4
 	StartLat         pgtype.Float8
 	StartLng         pgtype.Float8
+	CurrentLat       pgtype.Float8
+	CurrentLng       pgtype.Float8
 	Hops             pgtype.Int4
+	Status           string
 	ScheduledRelease pgtype.Timestamptz
 	IsRelease        pgtype.Bool
 	CreatedAt        pgtype.Timestamptz

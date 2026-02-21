@@ -54,15 +54,18 @@ func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 	})
 }
 
+// GetUser returns the profile of the currently authenticated user.
+// The user ID is extracted from the JWT claim injected by Auth middleware—
+// the route /users/profile has no :id path parameter.
 func (h *UserHandler) GetUser(c fiber.Ctx) error {
-	userID, err := parseID(c, "id")
-	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid user id")
+	userID, ok := middleware.UserIDFromCtx(c)
+	if !ok {
+		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}
 
 	user, err := h.svc.GetUser(c.Context(), userID)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "could not get user")
+		return fiber.NewError(fiber.StatusNotFound, "user not found")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(user)
