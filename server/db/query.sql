@@ -9,8 +9,8 @@ SELECT id, nickname, avatar_url, created_at FROM users WHERE id = $1;
 -- start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 
 -- name: CreateBottle :one
-INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, scheduled_release)
-VALUES ($1, $2, $3, $4, $5, $4, $5, $6)
+INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, is_release, scheduled_release)
+VALUES ($1, $2, $3, $4, $5, $4, $5, TRUE, $6)
 RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at;
 
 -- name: GetBottle :one

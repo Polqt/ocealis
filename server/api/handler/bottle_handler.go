@@ -133,6 +133,8 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusConflict, err.Error())
 		case errors.Is(err, service.ErrSenderCannotDiscover):
 			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "could not discover bottle")
 		}
 	}
 
