@@ -26,6 +26,9 @@ type BottleRepository interface {
 	UpdatePosition(ctx context.Context, id int32, lat, lng float64, status domain.BottleStatus) (*domain.Bottle, error)
 	// ListActive returns all bottles currently drifting that have been released.
 	ListActive(ctx context.Context) ([]domain.Bottle, error)
+
+	// WithTx returns a new repository instance that uses the provided transaction for all operations.
+	WithTx(q *ocealis.Queries) BottleRepository
 }
 
 type postgresBottleRepo struct {
@@ -33,6 +36,10 @@ type postgresBottleRepo struct {
 }
 
 func NewBottleRepository(q *ocealis.Queries) BottleRepository {
+	return &postgresBottleRepo{q: q}
+}
+
+func (r *postgresBottleRepo) WithTx(q *ocealis.Queries) BottleRepository {
 	return &postgresBottleRepo{q: q}
 }
 

@@ -3,12 +3,16 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/Polqt/ocealis/db"
+	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
 	"github.com/Polqt/ocealis/ws"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var (
@@ -42,17 +46,19 @@ type BottleService interface {
 }
 
 type bottleService struct {
+	pool    *pgxpool.Pool
 	bottles repository.BottleRepository
 	events  repository.EventRepository
 	bc      *ws.Broadcaster
 }
 
 func NewBottleService(
+	pool *pgxpool.Pool,
 	bottles repository.BottleRepository,
 	events repository.EventRepository,
 	bc *ws.Broadcaster,
 ) BottleService {
-	return &bottleService{bottles: bottles, events: events, bc: bc}
+	return &bottleService{pool: pool, bottles: bottles, events: events, bc: bc}
 }
 
 func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInput) (*domain.Bottle, error) {
@@ -61,27 +67,39 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 		releaseAt = *input.ReleaseAt
 	}
 
-	bottle, err := s.bottles.Create(ctx, repository.CreateBottleParams{
-		SenderID:    input.SenderID,
-		MessageText: input.MessageText,
-		BottleStyle: input.BottleStyle,
-		StartLat:    input.StartLat,
-		StartLng:    input.StartLng,
-		ScheduledRelease: pgtype.Timestamptz{
-			Time:  releaseAt,
-			Valid: true,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
+	var bottle *domain.Bottle
 
-	// Bug fix: first-creation event is "released", not "re_released".
-	_, err = s.events.Create(ctx, repository.CreateEventParams{
-		BottleID:  bottle.ID,
-		EventType: domain.EventTypeReleased,
-		Lat:       input.StartLat,
-		Lng:       input.StartLng,
+	err := db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
+		bottlesTx := s.bottles.WithTx(q)
+		eventsTx := s.events.WithTx(q)
+
+		var err error
+
+		bottle, err := bottlesTx.Create(ctx, repository.CreateBottleParams{
+			SenderID:    input.SenderID,
+			MessageText: input.MessageText,
+			BottleStyle: input.BottleStyle,
+			StartLat:    input.StartLat,
+			StartLng:    input.StartLng,
+			ScheduledRelease: pgtype.Timestamptz{
+				Time:  releaseAt,
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("create bottle:%w", err)
+		}
+
+		if _, err = eventsTx.Create(ctx, repository.CreateEventParams{
+			BottleID:  bottle.ID,
+			EventType: domain.EventTypeReleased,
+			Lat:       input.StartLat,
+			Lng:       input.StartLng,
+		}); err != nil {
+			return fmt.Errorf("create release event:%w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -116,6 +134,7 @@ func (s *bottleService) GetJourney(ctx context.Context, bottleID int32) (*domain
 }
 
 func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottleInput) (*domain.Journey, error) {
+	// Validation: bottle must exist, not already discovered, and discoverer cannot be sender, no mutation risk.
 	bottle, err := s.bottles.GetByID(ctx, input.BottleID)
 	if err != nil {
 		return nil, ErrBottleNotFound
@@ -129,19 +148,27 @@ func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottle
 		return nil, ErrAlreadyDiscovered
 	}
 
-	_, err = s.events.Create(ctx, repository.CreateEventParams{
-		BottleID:  bottle.ID,
-		EventType: domain.EventTypeDiscovered,
-		Lat:       input.UserLat,
-		Lng:       input.UserLng,
+	err = db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
+		bottlesTx := s.bottles.WithTx(q)
+		eventsTx := s.events.WithTx(q)
+
+		if _, err = eventsTx.Create(ctx, repository.CreateEventParams{
+			BottleID:  bottle.ID,
+			EventType: domain.EventTypeDiscovered,
+			Lat:       input.UserLat,
+			Lng:       input.UserLng,
+		}); err != nil {
+			return fmt.Errorf("create discovered event:%w", err)
+		}
+
+		if _, err := bottlesTx.UpdateStatus(ctx, bottle.ID, domain.BottleStatusDiscovered); err != nil {
+			return fmt.Errorf("update bottle status:%w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
-		return nil, err
-	}
-
-	// Persist status change to DB (was only mutating in-memory before).
-	if _, err = s.bottles.UpdateStatus(ctx, bottle.ID, domain.BottleStatusDiscovered); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("discover bottle:%w", err)
 	}
 
 	s.bc.BroadcastDiscovered(bottle.ID)
@@ -154,21 +181,30 @@ func (s *bottleService) ReleaseBottle(ctx context.Context, bottleID, userID int3
 		return nil, ErrBottleNotFound
 	}
 
-	// Bug fix: event type for re-release is "re_released", not "discovered".
-	_, err = s.events.Create(ctx, repository.CreateEventParams{
-		BottleID:  bottle.ID,
-		EventType: domain.EventTypeReReleased,
-		Lat:       lat,
-		Lng:       lng,
-	})
-	if err != nil {
-		return nil, err
-	}
+	var updated *domain.Bottle
 
-	// Persist new position and status to DB (was only mutating in-memory before).
-	updated, err := s.bottles.UpdatePosition(ctx, bottle.ID, lat, lng, domain.BottleStatusDrifting)
+	err = db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
+		bottlesTx := s.bottles.WithTx(q)
+		eventsTx := s.events.WithTx(q)
+
+		if _, err := eventsTx.Create(ctx, repository.CreateEventParams{
+			BottleID:  bottle.ID,
+			EventType: domain.EventTypeReReleased,
+			Lat:       lat,
+			Lng:       lng,
+		}); err != nil {
+			return fmt.Errorf("create re-release event:%w", err)
+		}
+
+		updated, err = bottlesTx.UpdatePosition(ctx, bottle.ID, lat, lng, domain.BottleStatusDrifting)
+		if err != nil {
+			return fmt.Errorf("update bottle position:%w", err)
+		}
+		return nil
+	})
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("release bottle:%w", err)
 	}
 
 	s.bc.BroadcastReleased(updated.ID)
