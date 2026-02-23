@@ -71,6 +71,9 @@ func mapEvent(row ocealis.BottleEvent) *domain.BottleEvent {
 	if row.Lng.Valid {
 		e.Lng = row.Lng.Float64
 	}
+	if row.CreatedAt.Valid {
+		e.CreatedAt = row.CreatedAt.Time
+	}
 
 	return e
 }
