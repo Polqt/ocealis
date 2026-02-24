@@ -48,3 +48,24 @@ FROM bottles
 WHERE is_release = FALSE
   AND status = 'scheduled'
   AND scheduled_release <= NOW();
+
+-- name: GetBottleEventsPaginated :many
+SELECT id, bottle_id, event_type, lat, lng, created_at
+FROM bottle_events
+WHERE bottle_id = $1
+  AND ($2::int IS NULL OR id < $2)
+ORDER BY id DESC
+LIMIT $3;
+
+-- name: GetNearbyBottles :many
+SELECT id, sender_id, message_text, bottle_style,
+       start_lat, start_lng, current_lat, current_lng,
+       hops, status, scheduled_release, is_release, created_at
+FROM bottles
+WHERE status = 'drifting'
+  AND is_release = TRUE
+  AND ($1::float8 IS NULL OR current_lat BETWEEN $1 - $3 AND $1 + $3)
+  AND ($2::float8 IS NULL OR current_lng BETWEEN $2 - $3 AND $2 + $3)
+  AND ($4::int IS NULL OR id < $4)
+ORDER BY id DESC
+LIMIT $5;
