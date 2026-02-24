@@ -10,6 +10,7 @@ import (
 	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
+	"github.com/Polqt/ocealis/util"
 	"github.com/Polqt/ocealis/ws"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,6 +63,15 @@ func NewBottleService(
 }
 
 func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInput) (*domain.Bottle, error) {
+	// Sanitize before anything else - never store raw user html
+	input.MessageText = util.SanitizeMessage(input.MessageText)
+
+	// Reject empty messages after sanitization
+	// (a message that was only tags would become an empty string)
+	if input.MessageText == "" {
+		return nil, errors.New("message text cannot be empty")
+	}
+
 	releaseAt := time.Now()
 	isScheduled := false
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"strings"
+	"time"
 
 	"github.com/Polqt/ocealis/api/handler"
 	"github.com/Polqt/ocealis/api/middleware"
@@ -43,13 +44,13 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 	users := v1.Group("/users")
 	users.Post("/", middleware.StrictRateLimit(), h.User.CreateUser)
 	users.Get("/profile", middleware.Auth(), h.User.GetUser)
-
+	
 	// Bottle routes
 	bottles := v1.Group("/bottles", middleware.Auth())
-	bottles.Post("/", middleware.StrictRateLimit(), h.Bottle.CreateBottle)
-	bottles.Get("/:id", h.Bottle.GetBottle)
-	bottles.Get("/:id/journey", h.Bottle.GetJourney)
-	bottles.Get("/:id/events", h.Event.GetBottleEvents)
-	bottles.Post("/:id/discover", h.Bottle.DiscoverBottle)
-	bottles.Post("/:id/release", h.Bottle.ReleaseBottle)
+	bottles.Post("/", middleware.UserRateLimit(5, time.Hour), h.Bottle.CreateBottle)
+	bottles.Get("/:id", middleware.UserRateLimit(120, time.Minute), h.Bottle.GetBottle)
+	bottles.Get("/:id/journey", middleware.UserRateLimit(120, time.Minute), h.Bottle.GetJourney)
+	bottles.Get("/:id/events", middleware.UserRateLimit(120, time.Minute), h.Event.GetBottleEvents)
+	bottles.Post("/:id/discover", middleware.UserRateLimit(20, time.Hour), h.Bottle.DiscoverBottle)
+	bottles.Post("/:id/release", middleware.UserRateLimit(5, time.Hour), h.Bottle.ReleaseBottle)
 }

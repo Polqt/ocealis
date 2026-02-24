@@ -18,24 +18,19 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/recover"
-	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
 func main() {
 	// Logger — structured JSON in production.
-	log, _ := zap.NewProduction()
+	log, _ := zap.NewDevelopment()
 	defer log.Sync()
 
-	// Config — .env is optional in deployed envs (already set via the platform).
-	_ = godotenv.Load()
-
 	// Database pool.
-	if err := db.Connect(); err != nil {
-		log.Fatal("DB connection error", zap.Error(err))
+	if err := db.Connect(log); err != nil {
+		log.Fatal("database connection error", zap.Error(err))
 	}
-	defer db.Pool.Close()
-
+	
 	queries := dbGen.New(db.Pool)
 
 	// Repositories.
@@ -54,7 +49,7 @@ func main() {
 
 	// HTTP handlers.
 	h := api.Handlers{
-		Health: handler.NewHealthHandler(),
+		Health: handler.NewHealthHandler(db.Pool, hub),
 		Bottle: handler.NewBottleHandler(bottleSvc),
 		User:   handler.NewUserHandler(userSvc),
 		Event:  handler.NewEventHandler(eventRepo),
