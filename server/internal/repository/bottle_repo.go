@@ -2,9 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -14,6 +17,7 @@ type CreateBottleParams struct {
 	BottleStyle      int32
 	StartLat         float64
 	StartLng         float64
+	IsScheduled      bool
 	ScheduledRelease pgtype.Timestamptz
 }
 
@@ -26,6 +30,7 @@ type BottleRepository interface {
 	UpdatePosition(ctx context.Context, id int32, lat, lng float64, status domain.BottleStatus) (*domain.Bottle, error)
 	// ListActive returns all bottles currently drifting that have been released.
 	ListActive(ctx context.Context) ([]domain.Bottle, error)
+	ReleaseScheduled(ctx context.Context) ([]domain.Bottle, error)
 
 	// WithTx returns a new repository instance that uses the provided transaction for all operations.
 	WithTx(q *ocealis.Queries) BottleRepository
@@ -61,7 +66,10 @@ func (r *postgresBottleRepo) Create(ctx context.Context, params CreateBottlePara
 func (r *postgresBottleRepo) GetByID(ctx context.Context, id int32) (*domain.Bottle, error) {
 	row, err := r.q.GetBottle(ctx, id)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("bottle not found")
+		}
+		return nil, fmt.Errorf("get bottle %d:%w", id, err)
 	}
 	return mapBottle(row), nil
 }
@@ -145,4 +153,18 @@ func mapBottle(row ocealis.Bottle) *domain.Bottle {
 		b.CreatedAt = row.CreatedAt.Time
 	}
 	return b
+}
+
+func (r *postgresBottleRepo) ReleaseScheduled(ctx context.Context) ([]domain.Bottle, error) {
+	rows, err := r.q.ListScheduledBottles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bottles := make([]domain.Bottle, 0, len(rows))
+	for _, row := range rows {
+		bottles = append(bottles, *mapBottle(row))
+	}
+
+	return bottles, nil
 }

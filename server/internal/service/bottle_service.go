@@ -63,8 +63,11 @@ func NewBottleService(
 
 func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInput) (*domain.Bottle, error) {
 	releaseAt := time.Now()
-	if input.ReleaseAt != nil {
+	isScheduled := false
+
+	if input.ReleaseAt != nil && input.ReleaseAt.After(time.Now()) {
 		releaseAt = *input.ReleaseAt
+		isScheduled = true // future release - don't broadcast now, will be handled by a scheduler
 	}
 
 	var bottle *domain.Bottle
@@ -75,12 +78,13 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 
 		var err error
 
-		bottle, err := bottlesTx.Create(ctx, repository.CreateBottleParams{
+		bottle, err = bottlesTx.Create(ctx, repository.CreateBottleParams{
 			SenderID:    input.SenderID,
 			MessageText: input.MessageText,
 			BottleStyle: input.BottleStyle,
 			StartLat:    input.StartLat,
 			StartLng:    input.StartLng,
+			IsScheduled: isScheduled,
 			ScheduledRelease: pgtype.Timestamptz{
 				Time:  releaseAt,
 				Valid: true,
@@ -90,13 +94,15 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 			return fmt.Errorf("create bottle:%w", err)
 		}
 
-		if _, err = eventsTx.Create(ctx, repository.CreateEventParams{
-			BottleID:  bottle.ID,
-			EventType: domain.EventTypeReleased,
-			Lat:       input.StartLat,
-			Lng:       input.StartLng,
-		}); err != nil {
-			return fmt.Errorf("create release event:%w", err)
+		if !isScheduled {
+			if _, err = eventsTx.Create(ctx, repository.CreateEventParams{
+				BottleID:  bottle.ID,
+				EventType: domain.EventTypeReleased,
+				Lat:       input.StartLat,
+				Lng:       input.StartLng,
+			}); err != nil {
+				return fmt.Errorf("create release event:%w", err)
+			}
 		}
 
 		return nil
@@ -105,7 +111,9 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 		return nil, err
 	}
 
-	s.bc.BroadcastReleased(bottle.ID)
+	if !isScheduled {
+		s.bc.BroadcastReleased(bottle.ID)
+	}
 	return bottle, nil
 }
 

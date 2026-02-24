@@ -11,14 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// — helpers ——————————————————————————————————————————————————————————————————
-// scanBottle fills a Bottle from any scannable row using the canonical column order:
-// id, sender_id, message_text, bottle_style, start_lat, start_lng,
-// current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
-type scanner interface{ Scan(...any) error }
+const createBottle = `-- name: CreateBottle :one
 
-func scanBottle(row scanner, i *Bottle) error {
-	return row.Scan(
+INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, is_release, scheduled_release)
+VALUES ($1, $2, $3, $4, $5, $4, $5, TRUE, $6)
+RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+`
+
+type CreateBottleParams struct {
+	SenderID         pgtype.Int4
+	MessageText      string
+	BottleStyle      pgtype.Int4
+	StartLat         pgtype.Float8
+	StartLng         pgtype.Float8
+	ScheduledRelease pgtype.Timestamptz
+}
+
+// Canonical column order for bottles: id, sender_id, message_text, bottle_style,
+// start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+func (q *Queries) CreateBottle(ctx context.Context, arg CreateBottleParams) (Bottle, error) {
+	row := q.db.QueryRow(ctx, createBottle,
+		arg.SenderID,
+		arg.MessageText,
+		arg.BottleStyle,
+		arg.StartLat,
+		arg.StartLng,
+		arg.ScheduledRelease,
+	)
+	var i Bottle
+	err := row.Scan(
 		&i.ID,
 		&i.SenderID,
 		&i.MessageText,
@@ -33,135 +54,14 @@ func scanBottle(row scanner, i *Bottle) error {
 		&i.IsRelease,
 		&i.CreatedAt,
 	)
-}
-
-// — users ————————————————————————————————————————————————————————————————————
-
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (nickname, avatar_url) VALUES ($1, $2)
-RETURNING id, nickname, avatar_url, created_at`
-
-type CreateUserParams struct {
-	Nickname  string
-	AvatarUrl pgtype.Text
-}
-
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Nickname, arg.AvatarUrl)
-	var i User
-	err := row.Scan(&i.ID, &i.Nickname, &i.AvatarUrl, &i.CreatedAt)
 	return i, err
 }
-
-const getUser = `-- name: GetUser :one
-SELECT id, nickname, avatar_url, created_at FROM users WHERE id = $1`
-
-func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
-	row := q.db.QueryRow(ctx, getUser, id)
-	var i User
-	err := row.Scan(&i.ID, &i.Nickname, &i.AvatarUrl, &i.CreatedAt)
-	return i, err
-}
-
-// — bottles ——————————————————————————————————————————————————————————————————
-
-const createBottle = `-- name: CreateBottle :one
-INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, is_release, scheduled_release)
-VALUES ($1, $2, $3, $4, $5, $4, $5, TRUE, $6)
-RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at`
-
-type CreateBottleParams struct {
-	SenderID         pgtype.Int4
-	MessageText      string
-	BottleStyle      pgtype.Int4
-	StartLat         pgtype.Float8
-	StartLng         pgtype.Float8
-	ScheduledRelease pgtype.Timestamptz
-}
-
-func (q *Queries) CreateBottle(ctx context.Context, arg CreateBottleParams) (Bottle, error) {
-	row := q.db.QueryRow(ctx, createBottle,
-		arg.SenderID, arg.MessageText, arg.BottleStyle,
-		arg.StartLat, arg.StartLng, arg.ScheduledRelease,
-	)
-	var i Bottle
-	return i, scanBottle(row, &i)
-}
-
-const getBottle = `-- name: GetBottle :one
-SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
-FROM bottles WHERE id = $1`
-
-func (q *Queries) GetBottle(ctx context.Context, id int32) (Bottle, error) {
-	row := q.db.QueryRow(ctx, getBottle, id)
-	var i Bottle
-	return i, scanBottle(row, &i)
-}
-
-const updateBottleStatus = `-- name: UpdateBottleStatus :one
-UPDATE bottles SET status = $2 WHERE id = $1
-RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at`
-
-type UpdateBottleStatusParams struct {
-	ID     int32
-	Status string
-}
-
-func (q *Queries) UpdateBottleStatus(ctx context.Context, arg UpdateBottleStatusParams) (Bottle, error) {
-	row := q.db.QueryRow(ctx, updateBottleStatus, arg.ID, arg.Status)
-	var i Bottle
-	return i, scanBottle(row, &i)
-}
-
-const updateBottlePosition = `-- name: UpdateBottlePosition :one
-UPDATE bottles
-SET current_lat = $2, current_lng = $3, hops = hops + 1, status = $4
-WHERE id = $1
-RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at`
-
-type UpdateBottlePositionParams struct {
-	ID         int32
-	CurrentLat pgtype.Float8
-	CurrentLng pgtype.Float8
-	Status     string
-}
-
-func (q *Queries) UpdateBottlePosition(ctx context.Context, arg UpdateBottlePositionParams) (Bottle, error) {
-	row := q.db.QueryRow(ctx, updateBottlePosition,
-		arg.ID, arg.CurrentLat, arg.CurrentLng, arg.Status,
-	)
-	var i Bottle
-	return i, scanBottle(row, &i)
-}
-
-const listActiveDriftingBottles = `-- name: ListActiveDriftingBottles :many
-SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
-FROM bottles
-WHERE status = 'drifting' AND is_release = TRUE`
-
-func (q *Queries) ListActiveDriftingBottles(ctx context.Context) ([]Bottle, error) {
-	rows, err := q.db.Query(ctx, listActiveDriftingBottles)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Bottle
-	for rows.Next() {
-		var i Bottle
-		if err := scanBottle(rows, &i); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	return items, rows.Err()
-}
-
-// — bottle_events ————————————————————————————————————————————————————————————
 
 const createBottleEvent = `-- name: CreateBottleEvent :one
 INSERT INTO bottle_events (bottle_id, event_type, lat, lng)
 VALUES ($1, $2, $3, $4)
-RETURNING id, bottle_id, event_type, lat, lng, created_at`
+RETURNING id, bottle_id, event_type, lat, lng, created_at
+`
 
 type CreateBottleEventParams struct {
 	BottleID  pgtype.Int4
@@ -172,16 +72,75 @@ type CreateBottleEventParams struct {
 
 func (q *Queries) CreateBottleEvent(ctx context.Context, arg CreateBottleEventParams) (BottleEvent, error) {
 	row := q.db.QueryRow(ctx, createBottleEvent,
-		arg.BottleID, arg.EventType, arg.Lat, arg.Lng,
+		arg.BottleID,
+		arg.EventType,
+		arg.Lat,
+		arg.Lng,
 	)
 	var i BottleEvent
-	err := row.Scan(&i.ID, &i.BottleID, &i.EventType, &i.Lat, &i.Lng, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.BottleID,
+		&i.EventType,
+		&i.Lat,
+		&i.Lng,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (nickname, avatar_url) VALUES ($1, $2)
+RETURNING id, nickname, avatar_url, created_at
+`
+
+type CreateUserParams struct {
+	Nickname  string
+	AvatarUrl pgtype.Text
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.Nickname, arg.AvatarUrl)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nickname,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getBottle = `-- name: GetBottle :one
+SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+FROM bottles WHERE id = $1
+`
+
+func (q *Queries) GetBottle(ctx context.Context, id int32) (Bottle, error) {
+	row := q.db.QueryRow(ctx, getBottle, id)
+	var i Bottle
+	err := row.Scan(
+		&i.ID,
+		&i.SenderID,
+		&i.MessageText,
+		&i.BottleStyle,
+		&i.StartLat,
+		&i.StartLng,
+		&i.CurrentLat,
+		&i.CurrentLng,
+		&i.Hops,
+		&i.Status,
+		&i.ScheduledRelease,
+		&i.IsRelease,
+		&i.CreatedAt,
+	)
 	return i, err
 }
 
 const getBottleEvents = `-- name: GetBottleEvents :many
 SELECT id, bottle_id, event_type, lat, lng, created_at
-FROM bottle_events WHERE bottle_id = $1 ORDER BY created_at DESC`
+FROM bottle_events WHERE bottle_id = $1 ORDER BY created_at DESC
+`
 
 func (q *Queries) GetBottleEvents(ctx context.Context, bottleID pgtype.Int4) ([]BottleEvent, error) {
 	rows, err := q.db.Query(ctx, getBottleEvents, bottleID)
@@ -192,10 +151,190 @@ func (q *Queries) GetBottleEvents(ctx context.Context, bottleID pgtype.Int4) ([]
 	var items []BottleEvent
 	for rows.Next() {
 		var i BottleEvent
-		if err := rows.Scan(&i.ID, &i.BottleID, &i.EventType, &i.Lat, &i.Lng, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.BottleID,
+			&i.EventType,
+			&i.Lat,
+			&i.Lng,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUser = `-- name: GetUser :one
+SELECT id, nickname, avatar_url, created_at FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
+	row := q.db.QueryRow(ctx, getUser, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nickname,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listActiveDriftingBottles = `-- name: ListActiveDriftingBottles :many
+SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+FROM bottles
+WHERE status = 'drifting' AND is_release = TRUE
+`
+
+func (q *Queries) ListActiveDriftingBottles(ctx context.Context) ([]Bottle, error) {
+	rows, err := q.db.Query(ctx, listActiveDriftingBottles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Bottle
+	for rows.Next() {
+		var i Bottle
+		if err := rows.Scan(
+			&i.ID,
+			&i.SenderID,
+			&i.MessageText,
+			&i.BottleStyle,
+			&i.StartLat,
+			&i.StartLng,
+			&i.CurrentLat,
+			&i.CurrentLng,
+			&i.Hops,
+			&i.Status,
+			&i.ScheduledRelease,
+			&i.IsRelease,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduledBottles = `-- name: ListScheduledBottles :many
+SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng,
+       current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+FROM bottles
+WHERE is_release = FALSE
+  AND status = 'scheduled'
+  AND scheduled_release <= NOW()
+`
+
+func (q *Queries) ListScheduledBottles(ctx context.Context) ([]Bottle, error) {
+	rows, err := q.db.Query(ctx, listScheduledBottles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Bottle
+	for rows.Next() {
+		var i Bottle
+		if err := rows.Scan(
+			&i.ID,
+			&i.SenderID,
+			&i.MessageText,
+			&i.BottleStyle,
+			&i.StartLat,
+			&i.StartLng,
+			&i.CurrentLat,
+			&i.CurrentLng,
+			&i.Hops,
+			&i.Status,
+			&i.ScheduledRelease,
+			&i.IsRelease,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateBottlePosition = `-- name: UpdateBottlePosition :one
+UPDATE bottles
+SET current_lat = $2, current_lng = $3, hops = hops + 1, status = $4
+WHERE id = $1
+RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+`
+
+type UpdateBottlePositionParams struct {
+	ID         int32
+	CurrentLat pgtype.Float8
+	CurrentLng pgtype.Float8
+	Status     string
+}
+
+func (q *Queries) UpdateBottlePosition(ctx context.Context, arg UpdateBottlePositionParams) (Bottle, error) {
+	row := q.db.QueryRow(ctx, updateBottlePosition,
+		arg.ID,
+		arg.CurrentLat,
+		arg.CurrentLng,
+		arg.Status,
+	)
+	var i Bottle
+	err := row.Scan(
+		&i.ID,
+		&i.SenderID,
+		&i.MessageText,
+		&i.BottleStyle,
+		&i.StartLat,
+		&i.StartLng,
+		&i.CurrentLat,
+		&i.CurrentLng,
+		&i.Hops,
+		&i.Status,
+		&i.ScheduledRelease,
+		&i.IsRelease,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateBottleStatus = `-- name: UpdateBottleStatus :one
+UPDATE bottles SET status = $2 WHERE id = $1
+RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+`
+
+type UpdateBottleStatusParams struct {
+	ID     int32
+	Status string
+}
+
+func (q *Queries) UpdateBottleStatus(ctx context.Context, arg UpdateBottleStatusParams) (Bottle, error) {
+	row := q.db.QueryRow(ctx, updateBottleStatus, arg.ID, arg.Status)
+	var i Bottle
+	err := row.Scan(
+		&i.ID,
+		&i.SenderID,
+		&i.MessageText,
+		&i.BottleStyle,
+		&i.StartLat,
+		&i.StartLng,
+		&i.CurrentLat,
+		&i.CurrentLng,
+		&i.Hops,
+		&i.Status,
+		&i.ScheduledRelease,
+		&i.IsRelease,
+		&i.CreatedAt,
+	)
+	return i, err
 }

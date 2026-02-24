@@ -40,3 +40,11 @@ RETURNING id, bottle_id, event_type, lat, lng, created_at;
 -- name: GetBottleEvents :many
 SELECT id, bottle_id, event_type, lat, lng, created_at
 FROM bottle_events WHERE bottle_id = $1 ORDER BY created_at DESC;
+
+-- name: ListScheduledBottles :many
+SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng,
+       current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+FROM bottles
+WHERE is_release = FALSE
+  AND status = 'scheduled'
+  AND scheduled_release <= NOW();
