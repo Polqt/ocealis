@@ -48,14 +48,9 @@ func main() {
 	broadcaster := ws.NewBroadcaster(hub, log)
 
 	// Services.
-	bottleSvc := service.NewBottleService(bottleRepo, eventRepo, broadcaster)
+	bottleSvc := service.NewBottleService(db.Pool, bottleRepo, eventRepo, broadcaster)
 	userSvc := service.NewUserService(userRepo)
-	driftSvc := service.NewDriftService(bottleRepo, eventRepo, broadcaster, log)
-
-	// Background scheduler — drift tick every 15 minutes.
-	scheduler := service.NewScheduler(driftSvc, log)
-	scheduler.Start(context.Background())
-	defer scheduler.Stop()
+	driftSvc := service.NewDriftService(db.Pool, bottleRepo, eventRepo, broadcaster, log)
 
 	// HTTP handlers.
 	h := api.Handlers{
@@ -111,6 +106,11 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Background scheduler — drift tick every 15 minutes.
+	scheduler := service.NewScheduler(driftSvc, log)
+	scheduler.Start(context.Background())
+	defer scheduler.Stop()
 
 	if err := app.ShutdownWithContext(ctx); err != nil {
 		log.Error("server shutdown error", zap.Error(err))

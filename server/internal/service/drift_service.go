@@ -6,10 +6,13 @@ import (
 	"math"
 	"math/rand"
 
+	"github.com/Polqt/ocealis/db"
+	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
 	"github.com/Polqt/ocealis/util"
 	"github.com/Polqt/ocealis/ws"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
@@ -41,9 +44,11 @@ var oceanZones = []currentZone{
 
 type DriftService interface {
 	Tick(ctx context.Context) error
+	ReleaseScheduled(ctx context.Context) error
 }
 
 type driftService struct {
+	pool    *pgxpool.Pool
 	bottles repository.BottleRepository
 	events  repository.EventRepository
 	bc      *ws.Broadcaster
@@ -51,12 +56,13 @@ type driftService struct {
 }
 
 func NewDriftService(
+	pool *pgxpool.Pool,
 	bottles repository.BottleRepository,
 	events repository.EventRepository,
 	bc *ws.Broadcaster,
 	log *zap.Logger,
 ) DriftService {
-	return &driftService{bottles: bottles, events: events, bc: bc, log: log}
+	return &driftService{pool: pool, bottles: bottles, events: events, bc: bc, log: log}
 }
 
 func (s *driftService) Tick(ctx context.Context) error {
@@ -135,4 +141,39 @@ func dominantCurrent(lat, lng float64) (bearing, speed float64) {
 	// Should never happen since the last zone is a global fallback, but just in case:
 	last := oceanZones[len(oceanZones)-1]
 	return last.bearing, last.speedKmH
+}
+
+func (s *driftService) ReleaseScheduled(ctx context.Context) error {
+	due, err := s.bottles.ReleaseScheduled(ctx)
+	if err != nil {
+		return fmt.Errorf("list scheduled bottles:%w", err)
+	}
+
+	for _, bottle := range due {
+		err := db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
+			bottlesTx := s.bottles.WithTx(q)
+			eventsTx := s.events.WithTx(q)
+
+			if _, err := eventsTx.Create(ctx, repository.CreateEventParams{
+				BottleID:  bottle.ID,
+				EventType: domain.EventTypeReleased,
+				Lat:       bottle.StartLat,
+				Lng:       bottle.StartLng,
+			}); err != nil {
+				return err
+			}
+
+			_, err := bottlesTx.UpdatePosition(ctx, bottle.ID, bottle.StartLat, bottle.StartLng, domain.BottleStatusDrifting)
+			return err
+		})
+		if err != nil {
+			s.log.Error("release scheduled bottle failed", zap.Int32("bottle_id", bottle.ID), zap.Error(err))
+			continue
+		}
+
+		s.bc.BroadcastReleased(bottle.ID)
+		s.log.Info("scheduled bottle released", zap.Int32("bottle_id", bottle.ID))
+	}
+
+	return nil
 }

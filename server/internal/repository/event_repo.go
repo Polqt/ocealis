@@ -18,6 +18,7 @@ type CreateEventParams struct {
 type EventRepository interface {
 	Create(ctx context.Context, params CreateEventParams) (*domain.BottleEvent, error)
 	GetByBottleID(ctx context.Context, bottleID int32) ([]domain.BottleEvent, error)
+	WithTx(q *ocealis.Queries) EventRepository
 }
 
 type postgresEventRepo struct {
@@ -25,6 +26,10 @@ type postgresEventRepo struct {
 }
 
 func NewEventRepository(q *ocealis.Queries) EventRepository {
+	return &postgresEventRepo{q: q}
+}
+
+func (r *postgresEventRepo) WithTx(q *ocealis.Queries) EventRepository {
 	return &postgresEventRepo{q: q}
 }
 
