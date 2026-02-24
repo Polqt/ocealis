@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -31,6 +32,26 @@ func StrictRateLimit() fiber.Handler {
 		},
 		LimitReached: func(c fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusTooManyRequests, "one bottle at a time")
+		},
+	})
+}
+
+// User Rate Limit is JWT-aware - keys by user_id for authenticated authenticated routes.
+// Falls back to IP if no user_id is present (shouldn't happen on auth routes)
+func UserRateLimit(max int, expiration time.Duration) fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        max,
+		Expiration: expiration,
+		KeyGenerator: func(c fiber.Ctx) string {
+			// User id from ctx reads from c.locals - only set after auth runs
+			// this middleware must be registered after auth in the chain.
+			if id, ok := UserIDFromCtx(c); ok {
+				return fmt.Sprintf("user:%d", id)
+			}
+			return c.IP()
+		},
+		LimitReached: func(c fiber.Ctx) error {
+			return fiber.NewError(fiber.StatusTooManyRequests, "you are moving too fast")
 		},
 	})
 }

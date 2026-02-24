@@ -8,11 +8,15 @@ import (
 
 	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 var Pool *pgxpool.Pool
 
-func Connect() error {
+func Connect(log *zap.Logger) error {
+	_ = godotenv.Load()
+
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {
 		return fmt.Errorf("DATABASE_URL not set")
@@ -39,7 +43,7 @@ func Connect() error {
 	}
 
 	Pool = pool
-	fmt.Println("Postgres pool connected")
+	log.Info("database connected", zap.Int32("max_conns", cfg.MaxConns), zap.String("health_check_period", cfg.HealthCheckPeriod.String()))
 	return nil
 }
 
