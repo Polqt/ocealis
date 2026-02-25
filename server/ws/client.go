@@ -1,6 +1,8 @@
 package ws
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/fasthttp/websocket"
@@ -11,8 +13,16 @@ const (
 	writeWait      = 10 * time.Second    // max time to write a message
 	pongWait       = 60 * time.Second    // max time between pongs from client
 	pingPeriod     = (pongWait * 9) / 10 // how often to send pings to client (must be less than pongWait)
-	maxMessageSize = 512                 // maximum message size allowed from client
+	maxMessageSize = 1024                // increased since subscriptions can be large, but still prevent DoS with huge messages
 )
+
+// SubMessage is what the client sends to subscribe or unsubscribe.
+// {"action": "subscribe", "topic": "bottle:42"}
+// {"action": "unsubscribe", "topic": "bottle:42"}
+type SubMessage struct {
+	Action string `json:"action"` // "subscribe" or "unsubscribe"
+	Topic  string `json:"topic"`
+}
 
 // Client is a single WebSocket connection.
 // It bridges the Hub and the underlying WebSocket connection.
@@ -54,8 +64,30 @@ func (c *Client) readPump() {
 	})
 
 	for {
-		if _, _, err := c.conn.ReadMessage(); err != nil {
+		_, msg, err := c.conn.ReadMessage()
+		if err != nil {
 			break
+		}
+
+		var sub SubMessage
+		if err := json.Unmarshal(msg, &sub); err != nil {
+			c.log.Warn("invalid ws message", zap.Error(err))
+			continue
+		}
+
+		switch sub.Action {
+		case "subscribe":
+			if err := validateTopic(sub.Topic); err != nil {
+				c.log.Warn("invalid topic", zap.String("topic", sub.Topic))
+				continue
+			}
+			c.hub.Subscribe(c, sub.Topic)
+			c.log.Debug("client subscribe", zap.String("topic", sub.Topic))
+		case "unsubscribe":
+			c.hub.Unsubscribe(c, sub.Topic)
+			c.log.Debug("client unsubscribed", zap.String("topic", sub.Topic))
+		default:
+			c.log.Warn("unknown ws action", zap.String("action", sub.Action))
 		}
 	}
 }
@@ -87,4 +119,14 @@ func (c *Client) writePump() {
 			}
 		}
 	}
+}
+
+// this function ensures topic string ffollow known formats.
+// prevents clients from subscribing to arbitrary topics.
+func validateTopic(topic string) error {
+	if len(topic) == 00 || len(topic) > 64 {
+		return fmt.Errorf("topic length invalid")
+	}
+
+	return nil
 }

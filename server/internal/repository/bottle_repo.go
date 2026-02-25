@@ -21,6 +21,14 @@ type CreateBottleParams struct {
 	ScheduledRelease pgtype.Timestamptz
 }
 
+type FindNearbyParams struct {
+	Lat       float64
+	Lng       float64
+	RadiusDeg float64 // degree-based bounding box radius for initial filtering; should be larger than the actual desired radius to account for edge cases
+	Cursor    *int32
+	Limit     int32
+}
+
 type BottleRepository interface {
 	Create(ctx context.Context, params CreateBottleParams) (*domain.Bottle, error)
 	GetByID(ctx context.Context, id int32) (*domain.Bottle, error)
@@ -31,6 +39,7 @@ type BottleRepository interface {
 	// ListActive returns all bottles currently drifting that have been released.
 	ListActive(ctx context.Context) ([]domain.Bottle, error)
 	ReleaseScheduled(ctx context.Context) ([]domain.Bottle, error)
+	FindNearby(ctx context.Context, params FindNearbyParams) (*domain.CursorResult[domain.Bottle], error)
 
 	// WithTx returns a new repository instance that uses the provided transaction for all operations.
 	WithTx(q *ocealis.Queries) BottleRepository
@@ -108,6 +117,48 @@ func (r *postgresBottleRepo) ListActive(ctx context.Context) ([]domain.Bottle, e
 		bottles = append(bottles, *mapBottle(row))
 	}
 	return bottles, nil
+}
+
+func (r *postgresBottleRepo) FindNearby(ctx context.Context, params FindNearbyParams) (*domain.CursorResult[domain.Bottle], error) {
+	fetchLimit := params.Limit + 1 // fetch one extra to determine if there's a next page
+
+	var cursorID int32
+	if params.Cursor != nil {
+		cursorID = *params.Cursor
+	}
+
+	rows, err := r.q.GetNearbyBottles(ctx, ocealis.GetNearbyBottlesParams{
+		Column1: params.Lat,
+		Column2: params.Lng,
+		Column3: params.RadiusDeg,
+		Column4: cursorID,
+		Limit:   fetchLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("find nearby bottles: %w", err)
+	}
+
+	hasMore := len(rows) > int(params.Limit)
+	if hasMore {
+		rows = rows[:params.Limit] // trim the extra record
+	}
+
+	bottles := make([]domain.Bottle, 0, len(rows))
+	for _, row := range rows {
+		bottles = append(bottles, *mapBottle(row))
+	}
+
+	result := &domain.CursorResult[domain.Bottle]{
+		Data:    bottles,
+		HasMore: hasMore,
+	}
+
+	if hasMore && len(bottles) > 0 {
+		lastID := bottles[len(bottles)-1].ID
+		result.NextCursor = &domain.Cursor{LastID: &lastID}
+	}
+
+	return result, nil
 }
 
 func mapBottle(row ocealis.Bottle) *domain.Bottle {

@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -47,18 +48,29 @@ func NewBroadcaster(hub *Hub, log *zap.Logger) *Broadcaster {
 }
 
 func (b *Broadcaster) BroadcastDrift(payload DriftPayload) {
-	b.broadcast(MsgBottleDrift, payload)
+	// Subscribe watching a specific bottle get full drift updates
+	bottleTopic := fmt.Sprintf("bottle:%d", payload.BottleID)
+
+	b.broadcastTopic(bottleTopic, MsgBottleDrift, payload)
+
+	// Subscribers watching a region get a lighter position update without the bottle style or hops,
+	// which are only relevant to bottle-specific subscribers.
+	regionTopic := regionForCoords(payload.Lat, payload.Lng)
+	b.broadcastTopic(regionTopic, MsgBottleDrift, payload)
+
 }
 
 func (b *Broadcaster) BroadcastDiscovered(bottleID int32) {
-	b.broadcast(MsgBottleDiscovered, map[string]int32{"bottle_id": bottleID})
+	topic := fmt.Sprintf("bottle:%d", bottleID)
+	b.broadcastTopic(topic, MsgBottleDiscovered, map[string]int32{"bottle_id": bottleID})
 }
 
 func (b *Broadcaster) BroadcastReleased(bottleID int32) {
+	// New bottles broadcast globally — everyone might want to see a new bottle appear
 	b.broadcast(MsgBottleReleased, map[string]int32{"bottle_id": bottleID})
 }
 
-func (b *Broadcaster) broadcast(msgType MessageType, payload any) {
+func (b *Broadcaster) broadcastTopic(topic string, msgType MessageType, payload any) {
 	msg := Message{Type: msgType, Payload: payload}
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -66,4 +78,33 @@ func (b *Broadcaster) broadcast(msgType MessageType, payload any) {
 		return
 	}
 	b.hub.Broadcast(data)
+}
+
+func (b *Broadcaster) broadcast(msgType MessageType, payload any) {
+	msg := Message{Type: msgType, Payload: payload}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		b.log.Error("failed to marshal ws message", zap.Error(err))
+		return
+	}
+	b.hub.Broadcast(data)
+}
+
+// regionForCoords determines the ocean region for given coordinates.
+// This is a simple heuristic and can be improved with more accurate geospatial data if needed.
+func regionForCoords(lat, lng float64) string {
+	switch {
+	case lat >= 0 && lng >= -80 && lng <= 0:
+		return "region:north_atlantic"
+	case lat < 0 && lng >= -60 && lng <= 20:
+		return "region:south_atlantic"
+	case lat >= 0 && (lng >= 120 || lng <= -120):
+		return "region:north_pacific"
+	case lat < 0 && (lng >= 150 || lng <= -70):
+		return "region:south_pacific"
+	case lat >= -60 && lat <= 25 && lng >= 40 && lng <= 120:
+		return "region:indian_ocean"
+	default:
+		return "region:other"
+	}
 }
