@@ -3,6 +3,8 @@ package ws
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fasthttp/websocket"
@@ -147,5 +149,4 @@ func validateTopic(topic string) error {
 	default:
 		return fmt.Errorf("unsupported topic")
 	}
-}
 }

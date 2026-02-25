@@ -37,13 +37,12 @@ func (h *DiscoveryHandler) FindNearby(c fiber.Ctx) error {
 
 	var cursor *int32
 	if raw := c.Query("cursor"); raw != "" {
-		n, err := strconv.ParseInt(raw, 10, 32)
-		if err != nil || n <= 0 {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "invalid cursor")
 		}
 		v := int32(n)
 		cursor = &v
-	}
 	}
 
 	result, err := h.svc.FindNearby(c.Context(), service.FindNearbyInput{
