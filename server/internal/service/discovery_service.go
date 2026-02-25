@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"sort"
+	"math"
 
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
@@ -59,17 +59,22 @@ func (s *discoverService) FindNearby(ctx context.Context, input FindNearbyInput)
 	latDeg := radius / kmPerDegree
 	cosLat := math.Cos(input.Lat * math.Pi / 180.0)
 	if math.Abs(cosLat) < 1e-6 {
-		cosLat = 1e-6
+		cosLat = 1e-6 // prevent division by zero at poles, effectively treating longitude as irrelevant there
 	}
 	lngDeg := radius / (kmPerDegree * math.Abs(cosLat))
 	radiusDeg := math.Max(latDeg, lngDeg)
 
+	// Fetch limit+1 from DB to detect hasMore, same pattern as event pagination.
+	// We do NOT multiply by 3 here because we're no longer over-filtering.
+	// The Haversine pass will discard bounding-box corners but we accept
+	// that the page might be slightly shorter than limit as a result.
+	// This is correct behavior, the client just gets fewer results, not wrong ones.
 	raw, err := s.bottles.FindNearby(ctx, repository.FindNearbyParams{
 		Lat:       input.Lat,
 		Lng:       input.Lng,
 		RadiusDeg: radiusDeg,
 		Cursor:    input.Cursor,
-		Limit:     limit * 3, // fetch more than needed, will filter precisely below
+		Limit:     int32(limit) + 1, // fetch more than needed, will filter precisely below
 	})
 	if err != nil {
 		return nil, fmt.Errorf("find nearby bottles:%w", err)
@@ -86,15 +91,12 @@ func (s *discoverService) FindNearby(ctx context.Context, input FindNearbyInput)
 		}
 	}
 
-	// Sort by distance which is the closeest first
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].DistanceKm < filtered[j].DistanceKm
-	})
+	hasMore := raw.HasMore
 
-	// Trim to requested limit
-	hasMore := len(filtered) > int(limit)
-	if hasMore {
+	// Trim to limit in case all rows survived Haversine filtering
+	if len(filtered) > int(limit) {
 		filtered = filtered[:limit]
+		hasMore = true
 	}
 
 	result := &domain.CursorResult[BottleWithDistance]{
@@ -102,10 +104,14 @@ func (s *discoverService) FindNearby(ctx context.Context, input FindNearbyInput)
 		HasMore: hasMore,
 	}
 
-	if hasMore && len(filtered) > 0 {
+	// Cursor comes from raw.NextCursor, the DB page boundary, not the filtered slice.
+	// This is the key fix: cursor tracks DB ordering (id DESC), not distance ordering.
+	if raw.NextCursor != nil {
+		result.NextCursor = raw.NextCursor
+	} else if hasMore && len(filtered) > 0 {
+		// Fallback: build cursor from last filtered item if raw didn't produce one
 		lastID := filtered[len(filtered)-1].ID
 		result.NextCursor = &domain.Cursor{LastID: &lastID}
 	}
-
 	return result, nil
 }

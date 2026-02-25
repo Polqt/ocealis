@@ -70,7 +70,7 @@ func (b *Broadcaster) BroadcastReleased(bottleID int32) {
 	b.broadcast(MsgBottleReleased, map[string]int32{"bottle_id": bottleID})
 }
 
-func (b *Broadcaster) broadcastTopic(topic string, msgType MessageType, payload any) {
+func (b *Broadcaster) broadcastTopic(_ string, msgType MessageType, payload any) {
 	msg := Message{Type: msgType, Payload: payload}
 	data, err := json.Marshal(msg)
 	if err != nil {
