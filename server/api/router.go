@@ -12,10 +12,11 @@ import (
 )
 
 type Handlers struct {
-	Health *handler.HealthHandler
-	Bottle *handler.BottleHandler
-	User   *handler.UserHandler
-	Event  *handler.EventHandler
+	Health    *handler.HealthHandler
+	Bottle    *handler.BottleHandler
+	User      *handler.UserHandler
+	Event     *handler.EventHandler
+	Discovery *handler.DiscoveryHandler
 }
 
 // RegisterRoutes wires all HTTP and WebSocket routes onto app.
@@ -44,7 +45,7 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 	users := v1.Group("/users")
 	users.Post("/", middleware.StrictRateLimit(), h.User.CreateUser)
 	users.Get("/profile", middleware.Auth(), h.User.GetUser)
-	
+
 	// Bottle routes
 	bottles := v1.Group("/bottles", middleware.Auth())
 	bottles.Post("/", middleware.UserRateLimit(5, time.Hour), h.Bottle.CreateBottle)
@@ -53,4 +54,8 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 	bottles.Get("/:id/events", middleware.UserRateLimit(120, time.Minute), h.Event.GetBottleEvents)
 	bottles.Post("/:id/discover", middleware.UserRateLimit(20, time.Hour), h.Bottle.DiscoverBottle)
 	bottles.Post("/:id/release", middleware.UserRateLimit(5, time.Hour), h.Bottle.ReleaseBottle)
+
+	// Discovery routes
+	discovery := v1.Group("/discovery", middleware.Auth())
+	discovery.Get("/", middleware.UserRateLimit(30, time.Minute), h.Discovery.FindNearby)
 }

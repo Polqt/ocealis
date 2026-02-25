@@ -6,11 +6,13 @@ import "sync"
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[*Client]struct{}
+	topics  map[string]map[*Client]struct{}
 }
 
 func NewHub() *Hub {
 	return &Hub{
 		clients: make(map[*Client]struct{}),
+		topics:  make(map[string]map[*Client]struct{}),
 	}
 }
 
@@ -23,34 +25,74 @@ func (h *Hub) Register(c *Client) {
 func (h *Hub) Unregister(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	// Remove from global client list
 	delete(h.clients, c)
+
+	// Remove from all topic subscriptions
+	for topic, subs := range h.topics {
+		delete(subs, c)
+		// Clean up empty topic entries
+		if len(subs) == 0 {
+			delete(h.topics, topic)
+		}
+	}
 }
 
-// Broadcast sends msg to every connected client.
-// It takes a snapshot under the read lock so that writes to individual
-// send channels never block while the lock is held.
+// Subscribe adds a client to a topic's subscriber list.
+func (h *Hub) Subscribe(c *Client, topic string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.topics[topic] == nil {
+		h.topics[topic] = make(map[*Client]struct{})
+	}
+
+	h.topics[topic][c] = struct{}{}
+}
+
+// Unsubscribe removes a client from a topic's subscriber list.
+func (h *Hub) Unsubscribe(c *Client, topic string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if subs, ok := h.topics[topic]; ok {
+		delete(subs, c)
+		if len(subs) == 0 {
+			delete(h.topics, topic)
+		}
+	}
+}
+
+// Broadcast sends to all connected clients regardless of subscriptions.
+// Use for global events like storms.
 func (h *Hub) Broadcast(msg []byte) {
 	h.mu.RLock()
-	clients := make([]*Client, 0, len(h.clients))
-	for c := range h.clients {
-		clients = append(clients, c)
-	}
-	h.mu.RUnlock()
+	defer h.mu.RUnlock()
 
-	// Send to the snapshot — no lock held, no data race.
-	var stale []*Client
-	for _, c := range clients {
+	for c := range h.clients {
 		select {
 		case c.send <- msg:
 		default:
-			// Send buffer full: mark client for removal.
-			stale = append(stale, c)
 		}
 	}
+}
 
-	// Evict unresponsive clients outside the send loop.
-	for _, c := range stale {
-		h.Unregister(c)
+// Broadcast Topic sends only to clients subscribed to a specific topic.
+func (h *Hub) BroadcastTopic(topic string, msg []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	subs, ok := h.topics[topic]
+	if !ok {
+		return // No subscribers for this topic
+	}
+
+	for c := range subs {
+		select {
+		case c.send <- msg:
+		default:
+		}
 	}
 }
 

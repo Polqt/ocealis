@@ -169,6 +169,109 @@ func (q *Queries) GetBottleEvents(ctx context.Context, bottleID pgtype.Int4) ([]
 	return items, nil
 }
 
+const getBottleEventsPaginated = `-- name: GetBottleEventsPaginated :many
+SELECT id, bottle_id, event_type, lat, lng, created_at
+FROM bottle_events
+WHERE bottle_id = $1
+  AND ($2::int IS NULL OR id < $2::int)
+ORDER BY id DESC
+LIMIT 3
+`
+
+type GetBottleEventsPaginatedParams struct {
+	BottleID pgtype.Int4
+	CursorID pgtype.Int4
+}
+
+func (q *Queries) GetBottleEventsPaginated(ctx context.Context, arg GetBottleEventsPaginatedParams) ([]BottleEvent, error) {
+	rows, err := q.db.Query(ctx, getBottleEventsPaginated, arg.BottleID, arg.CursorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BottleEvent
+	for rows.Next() {
+		var i BottleEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.BottleID,
+			&i.EventType,
+			&i.Lat,
+			&i.Lng,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getNearbyBottles = `-- name: GetNearbyBottles :many
+SELECT id, sender_id, message_text, bottle_style,
+       start_lat, start_lng, current_lat, current_lng,
+       hops, status, scheduled_release, is_release, created_at
+FROM bottles
+WHERE status = 'drifting'
+  AND is_release = TRUE
+  AND current_lat BETWEEN $1::float8 - $2::float8
+                      AND $1::float8 + $2::float8
+  AND current_lng BETWEEN $3::float8 - $2::float8
+                      AND $3::float8 + $2::float8
+  AND ($4::int IS NULL OR id < $4::int)
+ORDER BY id DESC
+LIMIT 5
+`
+
+type GetNearbyBottlesParams struct {
+	Lat       float64
+	RadiusDeg float64
+	Lng       float64
+	CursorID  pgtype.Int4
+}
+
+func (q *Queries) GetNearbyBottles(ctx context.Context, arg GetNearbyBottlesParams) ([]Bottle, error) {
+	rows, err := q.db.Query(ctx, getNearbyBottles,
+		arg.Lat,
+		arg.RadiusDeg,
+		arg.Lng,
+		arg.CursorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Bottle
+	for rows.Next() {
+		var i Bottle
+		if err := rows.Scan(
+			&i.ID,
+			&i.SenderID,
+			&i.MessageText,
+			&i.BottleStyle,
+			&i.StartLat,
+			&i.StartLng,
+			&i.CurrentLat,
+			&i.CurrentLng,
+			&i.Hops,
+			&i.Status,
+			&i.ScheduledRelease,
+			&i.IsRelease,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, nickname, avatar_url, created_at FROM users WHERE id = $1
 `

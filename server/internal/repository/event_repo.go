@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
@@ -15,9 +16,16 @@ type CreateEventParams struct {
 	Lng       float64
 }
 
+type GetEventParams struct {
+	BottleID int32
+	Cursor   *int32
+	Limit    int32
+}
+
 type EventRepository interface {
 	Create(ctx context.Context, params CreateEventParams) (*domain.BottleEvent, error)
 	GetByBottleID(ctx context.Context, bottleID int32) ([]domain.BottleEvent, error)
+	GetPaginated(ctx context.Context, params GetEventParams) (*domain.CursorResult[domain.BottleEvent], error)
 	WithTx(q *ocealis.Queries) EventRepository
 }
 
@@ -59,6 +67,44 @@ func (r *postgresEventRepo) GetByBottleID(ctx context.Context, bottleID int32) (
 	}
 
 	return events, nil
+}
+
+func (r *postgresEventRepo) GetPaginated(ctx context.Context, params GetEventParams) (*domain.CursorResult[domain.BottleEvent], error) {
+	var cursorID int32
+	if params.Cursor != nil {
+		cursorID = *params.Cursor
+	}
+
+	rows, err := r.q.GetBottleEventsPaginated(ctx, ocealis.GetBottleEventsPaginatedParams{
+		BottleID: pgtype.Int4{Int32: params.BottleID, Valid: true},
+		CursorID: pgtype.Int4{Int32: cursorID, Valid: params.Cursor != nil},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get paginated events: %w", err)
+	}
+
+	hasMore := len(rows) > int(params.Limit)
+	if hasMore {
+		rows = rows[:params.Limit] // Trim to the requested limit
+	}
+
+	events := make([]domain.BottleEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, *mapEvent(row))
+	}
+
+	result := &domain.CursorResult[domain.BottleEvent]{
+		Data:    events,
+		HasMore: hasMore,
+	}
+
+	// Set the next cursor to the ID of the last event in the current page
+	if hasMore && len(events) > 0 {
+		lastID := events[len(events)-1].ID
+		result.NextCursor = &domain.Cursor{LastID: &lastID}
+	}
+
+	return result, nil
 }
 
 func mapEvent(row ocealis.BottleEvent) *domain.BottleEvent {
