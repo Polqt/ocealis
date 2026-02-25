@@ -124,9 +124,28 @@ func (c *Client) writePump() {
 // this function ensures topic string ffollow known formats.
 // prevents clients from subscribing to arbitrary topics.
 func validateTopic(topic string) error {
-	if len(topic) == 00 || len(topic) > 64 {
+	if len(topic) == 0 || len(topic) > 64 {
 		return fmt.Errorf("topic length invalid")
 	}
+	if strings.HasPrefix(topic, "bottle:") {
+		idStr := strings.TrimPrefix(topic, "bottle:")
+		id, err := strconv.ParseInt(idStr, 10, 32)
+		if err != nil || id <= 0 {
+			return fmt.Errorf("invalid bottle topic")
+		}
+		return nil
+	}
 
-	return nil
+	switch topic {
+	case "region:north_atlantic",
+		"region:south_atlantic",
+		"region:north_pacific",
+		"region:south_pacific",
+		"region:indian_ocean",
+		"region:other":
+		return nil
+	default:
+		return fmt.Errorf("unsupported topic")
+	}
+}
 }
