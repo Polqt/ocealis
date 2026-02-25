@@ -120,19 +120,16 @@ func (r *postgresBottleRepo) ListActive(ctx context.Context) ([]domain.Bottle, e
 }
 
 func (r *postgresBottleRepo) FindNearby(ctx context.Context, params FindNearbyParams) (*domain.CursorResult[domain.Bottle], error) {
-	fetchLimit := params.Limit + 1 // fetch one extra to determine if there's a next page
-
 	var cursorID int32
 	if params.Cursor != nil {
 		cursorID = *params.Cursor
 	}
 
 	rows, err := r.q.GetNearbyBottles(ctx, ocealis.GetNearbyBottlesParams{
-		Column1: params.Lat,
-		Column2: params.Lng,
-		Column3: params.RadiusDeg,
-		Column4: cursorID,
-		Limit:   fetchLimit,
+		Lat:       params.Lat,
+		Lng:       params.Lng,
+		RadiusDeg: params.RadiusDeg,
+		CursorID:  pgtype.Int4{Int32: cursorID, Valid: params.Cursor != nil},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("find nearby bottles: %w", err)

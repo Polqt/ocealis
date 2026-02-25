@@ -52,10 +52,10 @@ WHERE is_release = FALSE
 -- name: GetBottleEventsPaginated :many
 SELECT id, bottle_id, event_type, lat, lng, created_at
 FROM bottle_events
-WHERE bottle_id = $1
-  AND ($2::int IS NULL OR id < $2)
+WHERE bottle_id = sqlc.arg(bottle_id)
+  AND (sqlc.narg(cursor_id)::int IS NULL OR id < sqlc.narg(cursor_id)::int)
 ORDER BY id DESC
-LIMIT $3;
+LIMIT 3;
 
 -- name: GetNearbyBottles :many
 SELECT id, sender_id, message_text, bottle_style,
@@ -64,8 +64,10 @@ SELECT id, sender_id, message_text, bottle_style,
 FROM bottles
 WHERE status = 'drifting'
   AND is_release = TRUE
-  AND ($1::float8 IS NULL OR current_lat BETWEEN $1 - $3 AND $1 + $3)
-  AND ($2::float8 IS NULL OR current_lng BETWEEN $2 - $3 AND $2 + $3)
-  AND ($4::int IS NULL OR id < $4)
+  AND current_lat BETWEEN sqlc.arg(lat)::float8 - sqlc.arg(radius_deg)::float8
+                      AND sqlc.arg(lat)::float8 + sqlc.arg(radius_deg)::float8
+  AND current_lng BETWEEN sqlc.arg(lng)::float8 - sqlc.arg(radius_deg)::float8
+                      AND sqlc.arg(lng)::float8 + sqlc.arg(radius_deg)::float8
+  AND (sqlc.narg(cursor_id)::int IS NULL OR id < sqlc.narg(cursor_id)::int)
 ORDER BY id DESC
-LIMIT $5;
+LIMIT 5;

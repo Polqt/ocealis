@@ -173,19 +173,18 @@ const getBottleEventsPaginated = `-- name: GetBottleEventsPaginated :many
 SELECT id, bottle_id, event_type, lat, lng, created_at
 FROM bottle_events
 WHERE bottle_id = $1
-  AND ($2::int IS NULL OR id < $2)
+  AND ($2::int IS NULL OR id < $2::int)
 ORDER BY id DESC
-LIMIT $3
+LIMIT 3
 `
 
 type GetBottleEventsPaginatedParams struct {
 	BottleID pgtype.Int4
-	Column2  int32
-	Limit    int32
+	CursorID pgtype.Int4
 }
 
 func (q *Queries) GetBottleEventsPaginated(ctx context.Context, arg GetBottleEventsPaginatedParams) ([]BottleEvent, error) {
-	rows, err := q.db.Query(ctx, getBottleEventsPaginated, arg.BottleID, arg.Column2, arg.Limit)
+	rows, err := q.db.Query(ctx, getBottleEventsPaginated, arg.BottleID, arg.CursorID)
 	if err != nil {
 		return nil, err
 	}
@@ -218,28 +217,28 @@ SELECT id, sender_id, message_text, bottle_style,
 FROM bottles
 WHERE status = 'drifting'
   AND is_release = TRUE
-  AND ($1::float8 IS NULL OR current_lat BETWEEN $1 - $3 AND $1 + $3)
-  AND ($2::float8 IS NULL OR current_lng BETWEEN $2 - $3 AND $2 + $3)
-  AND ($4::int IS NULL OR id < $4)
+  AND current_lat BETWEEN $1::float8 - $2::float8
+                      AND $1::float8 + $2::float8
+  AND current_lng BETWEEN $3::float8 - $2::float8
+                      AND $3::float8 + $2::float8
+  AND ($4::int IS NULL OR id < $4::int)
 ORDER BY id DESC
-LIMIT $5
+LIMIT 5
 `
 
 type GetNearbyBottlesParams struct {
-	Column1 float64
-	Column2 float64
-	Column3 interface{}
-	Column4 int32
-	Limit   int32
+	Lat       float64
+	RadiusDeg float64
+	Lng       float64
+	CursorID  pgtype.Int4
 }
 
 func (q *Queries) GetNearbyBottles(ctx context.Context, arg GetNearbyBottlesParams) ([]Bottle, error) {
 	rows, err := q.db.Query(ctx, getNearbyBottles,
-		arg.Column1,
-		arg.Column2,
-		arg.Column3,
-		arg.Column4,
-		arg.Limit,
+		arg.Lat,
+		arg.RadiusDeg,
+		arg.Lng,
+		arg.CursorID,
 	)
 	if err != nil {
 		return nil, err

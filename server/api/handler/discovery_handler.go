@@ -9,8 +9,8 @@ import (
 )
 
 type findNearbyRequest struct {
-	Lat      float64 `query:"lat"       validate:"required,min=-90,max=90"`
-	Lng      float64 `query:"lng"       validate:"required,min=-180,max=180"`
+	Lat      *float64 `query:"lat"       validate:"required,min=-90,max=90"`
+	Lng      *float64 `query:"lng"       validate:"required,min=-180,max=180"`
 	RadiusKm float64 `query:"radius_km" validate:"omitempty,min=1,max=2000"`
 	Limit    int32   `query:"limit"     validate:"omitempty,min=1,max=100"`
 	Cursor   *int32  `query:"cursor"`
@@ -46,8 +46,8 @@ func (h *DiscoveryHandler) FindNearby(c fiber.Ctx) error {
 	}
 
 	result, err := h.svc.FindNearby(c.Context(), service.FindNearbyInput{
-		Lat:      req.Lat,
-		Lng:      req.Lng,
+		Lat:      *req.Lat,
+		Lng:      *req.Lng,
 		RadiusKm: req.RadiusKm,
 		Limit:    req.Limit,
 		Cursor:   cursor,
