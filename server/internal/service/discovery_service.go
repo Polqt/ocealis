@@ -55,8 +55,14 @@ func (s *discoverService) FindNearby(ctx context.Context, input FindNearbyInput)
 		limit = 20
 	}
 
-	// Conver radius to degrees for the bounding box query
-	radiusDeg := radius / kmPerDegree
+	// Convert radius to a safe degree envelope for both latitude and longitude.
+	latDeg := radius / kmPerDegree
+	cosLat := math.Cos(input.Lat * math.Pi / 180.0)
+	if math.Abs(cosLat) < 1e-6 {
+		cosLat = 1e-6
+	}
+	lngDeg := radius / (kmPerDegree * math.Abs(cosLat))
+	radiusDeg := math.Max(latDeg, lngDeg)
 
 	raw, err := s.bottles.FindNearby(ctx, repository.FindNearbyParams{
 		Lat:       input.Lat,
