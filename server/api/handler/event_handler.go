@@ -26,8 +26,8 @@ func (h *EventHandler) GetBottleEvents(c fiber.Ctx) error {
 	// Parse optional cursor from query string: ?cursor=42
 	var cursor *int32
 	if raw := c.Query("cursor"); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil {
+		n, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || n <= 0 {
 			return fiber.NewError(fiber.StatusBadRequest, "invalid cursor")
 		}
 		v := int32(n)
