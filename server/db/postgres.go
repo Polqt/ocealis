@@ -55,7 +55,9 @@ func WithTransaction(ctx context.Context, pool *pgxpool.Pool, fn func(q *ocealis
 	if err != nil {
 		return fmt.Errorf("begin transaction:%w", err)
 	}
-	defer tx.Rollback(ctx) // no effect if already committed
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	if err := fn(ocealis.New(tx)); err != nil {
 		return err

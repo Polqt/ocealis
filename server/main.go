@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,40 +23,38 @@ import (
 )
 
 func main() {
-	// Logger — structured JSON in production.
 	log, _ := zap.NewDevelopment()
-	defer log.Sync()
+	defer func() {
+		_ = log.Sync()
+	}()
 
-	// Database pool.
 	if err := db.Connect(log); err != nil {
 		log.Fatal("database connection error", zap.Error(err))
 	}
-	
+	defer db.Pool.Close()
+
 	queries := dbGen.New(db.Pool)
 
-	// Repositories.
 	bottleRepo := repository.NewBottleRepository(queries)
 	eventRepo := repository.NewEventRepository(queries)
 	userRepo := repository.NewUserRepository(queries)
 
-	// WebSocket hub + broadcaster (created before services so they can broadcast).
 	hub := ws.NewHub()
 	broadcaster := ws.NewBroadcaster(hub, log)
 
-	// Services.
 	bottleSvc := service.NewBottleService(db.Pool, bottleRepo, eventRepo, broadcaster)
 	userSvc := service.NewUserService(userRepo)
 	driftSvc := service.NewDriftService(db.Pool, bottleRepo, eventRepo, broadcaster, log)
+	discoverySvc := service.NewDiscoveryService(bottleRepo)
 
-	// HTTP handlers.
 	h := api.Handlers{
-		Health: handler.NewHealthHandler(db.Pool, hub),
-		Bottle: handler.NewBottleHandler(bottleSvc),
-		User:   handler.NewUserHandler(userSvc),
-		Event:  handler.NewEventHandler(eventRepo),
+		Health:    handler.NewHealthHandler(db.Pool, hub),
+		Bottle:    handler.NewBottleHandler(bottleSvc),
+		User:      handler.NewUserHandler(userSvc),
+		Event:     handler.NewEventHandler(eventRepo),
+		Discovery: handler.NewDiscoveryHandler(discoverySvc),
 	}
 
-	// Fiber app.
 	app := fiber.New(fiber.Config{
 		AppName:       "Ocealis v1",
 		CaseSensitive: true,
@@ -81,34 +80,33 @@ func main() {
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
 	}))
 
-	// Routes (HTTP + WebSocket).
 	api.RegisterRoutes(app, h, hub, log)
 
-	// Shutdown: wait for SIGINT/SIGTERM before draining connections.
+	scheduler := service.NewScheduler(driftSvc, log)
+	appCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	scheduler.Start(appCtx)
+	defer scheduler.Stop()
+
 	port := util.EnvString("PORT", "8080")
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
 		log.Info("server starting", zap.String("port", port))
-		if err := app.Listen(":" + port); err != nil {
+		if err := app.Listen(":" + port); err != nil && !errors.Is(err, fiber.ErrServiceUnavailable) {
 			log.Error("server listen error", zap.Error(err))
 		}
 	}()
 
-	<-quit
+	<-appCtx.Done()
 	log.Info("shutdown signal received, draining connections")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Background scheduler — drift tick every 15 minutes.
-	scheduler := service.NewScheduler(driftSvc, log)
-	scheduler.Start(context.Background())
-	defer scheduler.Stop()
-
-	if err := app.ShutdownWithContext(ctx); err != nil {
+	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
 		log.Error("server shutdown error", zap.Error(err))
 	}
+
 	log.Info("server exited cleanly")
 }
