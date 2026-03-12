@@ -13,8 +13,8 @@ import (
 
 const createBottle = `-- name: CreateBottle :one
 
-INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, is_release, scheduled_release)
-VALUES ($1, $2, $3, $4, $5, $4, $5, TRUE, $6)
+INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, status, is_release, scheduled_release)
+VALUES ($1, $2, $3, $4, $5, $4, $5, $6, $7, $8)
 RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 `
 
@@ -24,6 +24,8 @@ type CreateBottleParams struct {
 	BottleStyle      pgtype.Int4
 	StartLat         pgtype.Float8
 	StartLng         pgtype.Float8
+	Status           string
+	IsRelease        pgtype.Bool
 	ScheduledRelease pgtype.Timestamptz
 }
 
@@ -36,6 +38,8 @@ func (q *Queries) CreateBottle(ctx context.Context, arg CreateBottleParams) (Bot
 		arg.BottleStyle,
 		arg.StartLat,
 		arg.StartLng,
+		arg.Status,
+		arg.IsRelease,
 		arg.ScheduledRelease,
 	)
 	var i Bottle
@@ -373,7 +377,11 @@ func (q *Queries) ListScheduledBottles(ctx context.Context) ([]Bottle, error) {
 
 const updateBottlePosition = `-- name: UpdateBottlePosition :one
 UPDATE bottles
-SET current_lat = $2, current_lng = $3, hops = hops + 1, status = $4
+SET current_lat = $2,
+    current_lng = $3,
+    hops = hops + 1,
+    status = $4,
+    is_release = CASE WHEN $4 = 'drifting' THEN TRUE ELSE is_release END
 WHERE id = $1
 RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 `
