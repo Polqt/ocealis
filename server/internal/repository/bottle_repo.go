@@ -17,6 +17,8 @@ type CreateBottleParams struct {
 	BottleStyle      int32
 	StartLat         float64
 	StartLng         float64
+	Status           domain.BottleStatus
+	IsReleased       bool
 	IsScheduled      bool
 	ScheduledRelease pgtype.Timestamptz
 }
@@ -64,6 +66,8 @@ func (r *postgresBottleRepo) Create(ctx context.Context, params CreateBottlePara
 		BottleStyle:      pgtype.Int4{Int32: params.BottleStyle, Valid: true},
 		StartLat:         pgtype.Float8{Float64: params.StartLat, Valid: true},
 		StartLng:         pgtype.Float8{Float64: params.StartLng, Valid: true},
+		Status:           string(params.Status),
+		IsRelease:        pgtype.Bool{Bool: params.IsReleased, Valid: true},
 		ScheduledRelease: params.ScheduledRelease,
 	})
 	if err != nil {

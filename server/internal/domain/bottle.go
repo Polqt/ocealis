@@ -8,6 +8,7 @@ const (
 	BottleStatusDrifting   BottleStatus = "drifting"
 	BottleStatusDiscovered BottleStatus = "discovered"
 	BottleStatusReleased   BottleStatus = "released"
+	BottleStatusScheduled  BottleStatus = "scheduled"
 )
 
 type Bottle struct {
@@ -28,5 +29,5 @@ type Bottle struct {
 
 type Journey struct {
 	Bottle *Bottle       `json:"bottle"`
-	Events  []BottleEvent `json:"events"`
+	Events []BottleEvent `json:"events"`
 }
