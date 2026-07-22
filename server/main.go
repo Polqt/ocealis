@@ -77,8 +77,17 @@ func main() {
 
 	app.Use(recover.New())
 	app.Use(middleware.RequestLogger(log))
+
+	allowedOrigins := util.EnvCSV("CORS_ALLOWED_ORIGINS", []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+	})
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: []string{util.EnvString("CORS_ALLOWED_ORIGINS", "http://localhost:3000")},
+		AllowOrigins: allowedOrigins,
+		AllowOriginsFunc: func(origin string) bool {
+			// Local SolidStart sometimes flips between localhost and 127.0.0.1.
+			return origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000"
+		},
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
 	}))

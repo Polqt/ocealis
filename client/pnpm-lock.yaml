@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@fontsource-variable/figtree':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/fraunces':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@solidjs/meta':
         specifier: ^0.29.4
         version: 0.29.4(solid-js@1.9.11)
@@ -460,6 +466,12 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fontsource-variable/figtree@5.3.0':
+    resolution: {integrity: sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ==}
+
+  '@fontsource-variable/fraunces@5.3.0':
+    resolution: {integrity: sha512-9BYGySn4AHEJdgp9Z28tQ3X+laJMEOITXkQarZXeloWQZDq5oOvXJ3kDA8c7MGIfpogIaZfjrQBqmda8POOCKA==}
 
   '@ioredis/commands@1.5.0':
     resolution: {integrity: sha512-eUgLqrMf8nJkZxT24JvVRrQya1vZkQh8BBeYNwGDqa5I0VUi8ACx7uFvAaLxintokpTenkK6DASvo/bvNbBGow==}
@@ -3115,6 +3127,10 @@ snapshots:
 
   '@esbuild/win32-x64@0.27.3':
     optional: true
+
+  '@fontsource-variable/figtree@5.3.0': {}
+
+  '@fontsource-variable/fraunces@5.3.0': {}
 
   '@ioredis/commands@1.5.0': {}
 

@@ -76,14 +76,17 @@ export default function OceanHome() {
   return (
     <main class="ocean-shell">
       <div class="ocean-stage">
-        <Show when={ready()} fallback={<div class="ocean-loading">Opening the sea…</div>}>
-          <OceanCanvas
-            bottles={bottles}
-            selectedId={selectedId}
-            journeyPoints={journeyPoints}
-            castPulse={castPulse}
-            onSelect={id => setSelectedId(id)}
-          />
+        {/* Ocean mounts immediately so the vast sea is the first visual, even if API is slow. */}
+        <OceanCanvas
+          bottles={bottles}
+          selectedId={selectedId}
+          journeyPoints={journeyPoints}
+          castPulse={castPulse}
+          onSelect={id => setSelectedId(id)}
+        />
+
+        <Show when={!ready()}>
+          <div class="ocean-loading">Opening the sea…</div>
         </Show>
 
         <header class="brand-hero">
@@ -91,15 +94,17 @@ export default function OceanHome() {
           <h1>A living ocean of anonymous bottles</h1>
           <p class="tagline">Cast a message. Watch it drift. Let strangers find it.</p>
           <div class="cta-row">
-            <button type="button" class="primary" onClick={() => setCastOpen(true)}>
+            <button type="button" class="primary" onClick={() => setCastOpen(true)} disabled={!ready()}>
               Cast a bottle
             </button>
-            <span classList={{ pulse: true, on: live() }}>{live() ? "Live drift" : "Connecting…"}</span>
+            <span classList={{ pulse: true, on: live() }}>
+              {!ready() ? "Connecting…" : live() ? "Live drift" : error() ? "Offline" : "Connected"}
+            </span>
           </div>
         </header>
 
         <Show when={error()}>
-          <p class="banner-error">{error()}</p>
+          <p class="banner-error">{error()} — is the API running on :8080?</p>
         </Show>
       </div>
 
