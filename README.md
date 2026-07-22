@@ -37,6 +37,8 @@ make migrate
 
 If `psql` reports `relation "users" already exists`, your database is already set up — continue to the server step.
 
+**Windows / Git Bash:** `psql` does not read `.env`. Export `DATABASE_URL` in that terminal (user `postgres`, host `127.0.0.1`). If `psql` asks for password for user `poyhi`, `$DATABASE_URL` is empty — your OS username is being used as a fallback.
+
 ### Server
 
 ```bash

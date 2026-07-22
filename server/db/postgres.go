@@ -15,11 +15,13 @@ import (
 var Pool *pgxpool.Pool
 
 func Connect(log *zap.Logger) error {
-	_ = godotenv.Load()
+	// Prefer server/.env over inherited shell vars (Windows/Git Bash often has a
+	// stale or empty DATABASE_URL that would otherwise win over godotenv.Load).
+	_ = godotenv.Overload(".env")
 
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {
-		return fmt.Errorf("DATABASE_URL not set")
+		return fmt.Errorf("DATABASE_URL not set — copy .env.example to .env and use user postgres")
 	}
 
 	cfg, err := pgxpool.ParseConfig(connString)
