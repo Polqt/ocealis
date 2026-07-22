@@ -1,9 +1,14 @@
+import { A } from "@solidjs/router";
+
 export default function Nav() {
   return (
-    <header class="cast-nav">
-      <a href="/" class="cast-nav__brand">
+    <header class="ocean-nav">
+      <A href="/" class="ocean-nav__brand">
         Ocealis
-      </a>
+      </A>
+      <A href="/cast" class="ocean-nav__cast">
+        Cast
+      </A>
     </header>
   );
 }

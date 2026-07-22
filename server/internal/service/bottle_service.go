@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/Polqt/ocealis/db"
@@ -134,8 +135,14 @@ func (s *bottleService) GetJourney(ctx context.Context, bottleID int32) (*domain
 		return nil, err
 	}
 
-	// current_lat/current_lng are now persisted in the DB so the bottle
-	// struct already reflects the real position; no event-walk needed.
+	// Journey reads oldest-first (Cast → … → Sink), even if store returns DESC.
+	sort.SliceStable(events, func(i, j int) bool {
+		if events[i].CreatedAt.Equal(events[j].CreatedAt) {
+			return events[i].ID < events[j].ID
+		}
+		return events[i].CreatedAt.Before(events[j].CreatedAt)
+	})
+
 	return &domain.Journey{Bottle: bottle, Events: events}, nil
 }
 

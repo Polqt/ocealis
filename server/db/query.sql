@@ -56,7 +56,7 @@ RETURNING id, bottle_id, event_type, lat, lng, created_at;
 
 -- name: GetBottleEvents :many
 SELECT id, bottle_id, event_type, lat, lng, created_at
-FROM bottle_events WHERE bottle_id = $1 ORDER BY created_at DESC;
+FROM bottle_events WHERE bottle_id = $1 ORDER BY created_at ASC, id ASC;
 
 -- name: GetBottleEventsPaginated :many
 SELECT id, bottle_id, event_type, lat, lng, created_at

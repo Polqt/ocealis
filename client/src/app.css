@@ -35,20 +35,146 @@ body {
   background: var(--sea-deep);
 }
 
-.cast-nav {
+.ocean-nav {
   position: absolute;
   z-index: 2;
   top: 1rem;
   left: 1.25rem;
+  right: 1.25rem;
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  pointer-events: none;
 }
 
-.cast-nav__brand {
+.ocean-nav a {
+  pointer-events: auto;
+}
+
+.ocean-nav__brand {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: 1.35rem;
   letter-spacing: 0.04em;
   color: var(--sea-foam);
   text-decoration: none;
-  opacity: 0.85;
+}
+
+.ocean-nav__cast {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--accent);
+  text-decoration: none;
+  opacity: 0.9;
+}
+
+.ocean-page {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--sea-deep);
+}
+
+.ocean-map {
+  position: absolute;
+  inset: 0;
+}
+
+.cork-open {
+  position: absolute;
+  z-index: 3;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 1.5rem;
+  max-width: 22rem;
+  margin-inline: auto;
+  padding: 1.1rem 1.2rem 1.25rem;
+  background: linear-gradient(165deg, rgba(10, 42, 58, 0.94), rgba(6, 24, 32, 0.96));
+  border: 1px solid rgba(200, 231, 240, 0.22);
+  animation: rise 0.35s ease-out;
+}
+
+.cork-open__close {
+  float: right;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--sea-foam);
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.75;
+  padding: 0;
+}
+
+.cork-open__close:hover {
+  opacity: 1;
+}
+
+.cork-open__nick {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: 0 0 0.45rem;
+  color: var(--accent);
+}
+
+.cork-open__msg {
+  margin: 0 0 1rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.cork-open__journey-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin: 0 0 0.4rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.cork-open__events {
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.55;
+  opacity: 0.9;
+}
+
+.cork-open__empty {
+  margin: 0;
+  opacity: 0.65;
+  font-size: 0.9rem;
+}
+
+.cork-open__err {
+  position: absolute;
+  z-index: 3;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 1.5rem;
+  max-width: 22rem;
+  margin-inline: auto;
+  color: var(--danger);
+  text-align: center;
+}
+
+.ocean-fallback {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  font-family: var(--font-display);
+  color: var(--sea-foam);
+  opacity: 0.7;
+}
+
+.cast-back {
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.cast-back a {
+  color: var(--accent);
+  text-decoration: none;
 }
 
 .cast-page {

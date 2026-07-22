@@ -144,7 +144,7 @@ func (q *Queries) GetBottle(ctx context.Context, id int32) (Bottle, error) {
 
 const getBottleEvents = `-- name: GetBottleEvents :many
 SELECT id, bottle_id, event_type, lat, lng, created_at
-FROM bottle_events WHERE bottle_id = $1 ORDER BY created_at DESC
+FROM bottle_events WHERE bottle_id = $1 ORDER BY created_at ASC, id ASC
 `
 
 func (q *Queries) GetBottleEvents(ctx context.Context, bottleID pgtype.Int4) ([]BottleEvent, error) {
