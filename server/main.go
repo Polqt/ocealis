@@ -60,7 +60,7 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName:       "Ocealis v1",
 		CaseSensitive: true,
-		StrictRouting: true,
+		StrictRouting: false, // accept /users and /users/
 		ServerHeader:  "Ocealis",
 		ReadTimeout:   10 * time.Second,
 		WriteTimeout:  10 * time.Second,
@@ -76,21 +76,18 @@ func main() {
 	})
 
 	app.Use(recover.New())
-	app.Use(middleware.RequestLogger(log))
-
-	allowedOrigins := util.EnvCSV("CORS_ALLOWED_ORIGINS", []string{
-		"http://localhost:3000",
-		"http://127.0.0.1:3000",
-	})
+	// CORS before logger so failed/early responses still carry ACAO.
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: allowedOrigins,
-		AllowOriginsFunc: func(origin string) bool {
-			// Local SolidStart sometimes flips between localhost and 127.0.0.1.
-			return origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000"
-		},
-		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowOrigins: util.EnvCSV("CORS_ALLOWED_ORIGINS", []string{
+			"http://localhost:3000",
+			"http://127.0.0.1:3000",
+			"*",
+		}),
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		MaxAge:       3600,
 	}))
+	app.Use(middleware.RequestLogger(log))
 
 	api.RegisterRoutes(app, h, hub, log)
 

@@ -1,6 +1,8 @@
 import type { Bottle, Journey, User } from "./types";
 
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8080";
+// Empty = same origin (Vite proxies /api and /ws to the Go server in dev).
+// Set VITE_API_URL=http://127.0.0.1:8080 only if you intentionally bypass the proxy.
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 const TOKEN_KEY = "ocealis_token";
 const USER_KEY = "ocealis_user";
@@ -111,6 +113,12 @@ export function apiBase(): string {
 }
 
 export function wsUrl(): string {
-  const base = API_URL.replace(/^http/, "ws");
-  return `${base}/ws`;
+  if (API_URL) {
+    return `${API_URL.replace(/^http/, "ws")}/ws`;
+  }
+  if (typeof window === "undefined") {
+    return "ws://127.0.0.1:8080/ws";
+  }
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/ws`;
 }

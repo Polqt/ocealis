@@ -42,9 +42,9 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 
 	v1 := app.Group("/api/v1")
 
-	// User routes
+	// User routes (no trailing-slash requirement)
 	users := v1.Group("/users")
-	users.Post("/", middleware.StrictRateLimit(), h.User.CreateUser)
+	users.Post("", middleware.StrictRateLimit(), h.User.CreateUser)
 	users.Get("/profile", middleware.Auth(), h.User.GetUser)
 
 	// Ambient ocean seed (auth so anon JWT rate limits apply)
@@ -53,7 +53,7 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 
 	// Bottle routes
 	bottles := v1.Group("/bottles", middleware.Auth())
-	bottles.Post("/", middleware.UserRateLimit(5, time.Hour), h.Bottle.CreateBottle)
+	bottles.Post("", middleware.UserRateLimit(5, time.Hour), h.Bottle.CreateBottle)
 	bottles.Get("/:id", middleware.UserRateLimit(120, time.Minute), h.Bottle.GetBottle)
 	bottles.Get("/:id/journey", middleware.UserRateLimit(120, time.Minute), h.Bottle.GetJourney)
 	bottles.Get("/:id/events", middleware.UserRateLimit(120, time.Minute), h.Event.GetBottleEvents)

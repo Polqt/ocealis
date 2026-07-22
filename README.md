@@ -54,8 +54,10 @@ go run .
 cd client
 pnpm install
 pnpm dev
-# http://localhost:3000 — set VITE_API_URL if the API is not on localhost:8080
+# http://localhost:3000
 ```
+
+Dev uses a Vite proxy: browser calls `/api` and `/ws` on `:3000`, which forward to the Go API on `127.0.0.1:8080` (no CORS). Only set `VITE_API_URL` if you intentionally bypass the proxy.
 
 ## Core loop
 
