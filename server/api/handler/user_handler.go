@@ -28,8 +28,8 @@ func NewUserHandler(svc service.UserService) *UserHandler {
 // Create an anonymous user with a nickname and optional avatar URL. The nickname must be between 3 and 20 characters, and the avatar URL must be a valid URL if provided.
 func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 	var req createUserRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
+	if err := bindJSON(c, &req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	if err := h.validate.Struct(req); err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())

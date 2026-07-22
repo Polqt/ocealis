@@ -49,8 +49,8 @@ func (h *BottleHandler) CreateBottle(c fiber.Ctx) error {
 	}
 
 	var req createBottleRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
+	if err := bindJSON(c, &req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 
 	if err := h.validate.Struct(req); err != nil {
@@ -112,8 +112,8 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 	}
 
 	var req DiscoverBottleRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
+	if err := bindJSON(c, &req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	if err := h.validate.Struct(req); err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
@@ -156,8 +156,8 @@ func (h *BottleHandler) ReleaseBottle(c fiber.Ctx) error {
 	}
 
 	var req releaseBottleRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
+	if err := bindJSON(c, &req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	if err := h.validate.Struct(req); err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
