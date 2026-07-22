@@ -75,17 +75,23 @@ func (r *postgresEventRepo) GetPaginated(ctx context.Context, params GetEventPar
 		cursorID = *params.Cursor
 	}
 
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
 	rows, err := r.q.GetBottleEventsPaginated(ctx, ocealis.GetBottleEventsPaginatedParams{
 		BottleID: pgtype.Int4{Int32: params.BottleID, Valid: true},
 		CursorID: pgtype.Int4{Int32: cursorID, Valid: params.Cursor != nil},
+		RowLimit: limit + 1, // fetch one extra to detect hasMore
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get paginated events: %w", err)
 	}
 
-	hasMore := len(rows) > int(params.Limit)
+	hasMore := len(rows) > int(limit)
 	if hasMore {
-		rows = rows[:params.Limit] // Trim to the requested limit
+		rows = rows[:limit]
 	}
 
 	events := make([]domain.BottleEvent, 0, len(rows))

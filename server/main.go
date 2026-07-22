@@ -10,6 +10,7 @@ import (
 
 	"github.com/Polqt/ocealis/api"
 	"github.com/Polqt/ocealis/api/handler"
+	"github.com/Polqt/ocealis/api/middleware"
 	"github.com/Polqt/ocealis/db"
 	dbGen "github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/repository"
@@ -53,6 +54,7 @@ func main() {
 		User:      handler.NewUserHandler(userSvc),
 		Event:     handler.NewEventHandler(eventRepo),
 		Discovery: handler.NewDiscoveryHandler(discoverySvc),
+		Ocean:     handler.NewOceanHandler(bottleRepo),
 	}
 
 	app := fiber.New(fiber.Config{
@@ -74,6 +76,7 @@ func main() {
 	})
 
 	app.Use(recover.New())
+	app.Use(middleware.RequestLogger(log))
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: []string{util.EnvString("CORS_ALLOWED_ORIGINS", "http://localhost:3000")},
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},

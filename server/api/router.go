@@ -17,6 +17,7 @@ type Handlers struct {
 	User      *handler.UserHandler
 	Event     *handler.EventHandler
 	Discovery *handler.DiscoveryHandler
+	Ocean     *handler.OceanHandler
 }
 
 // RegisterRoutes wires all HTTP and WebSocket routes onto app.
@@ -45,6 +46,10 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 	users := v1.Group("/users")
 	users.Post("/", middleware.StrictRateLimit(), h.User.CreateUser)
 	users.Get("/profile", middleware.Auth(), h.User.GetUser)
+
+	// Ambient ocean seed (auth so anon JWT rate limits apply)
+	ocean := v1.Group("/ocean", middleware.Auth())
+	ocean.Get("/bottles", middleware.UserRateLimit(60, time.Minute), h.Ocean.ListBottles)
 
 	// Bottle routes
 	bottles := v1.Group("/bottles", middleware.Auth())

@@ -40,6 +40,8 @@ type BottleRepository interface {
 	UpdatePosition(ctx context.Context, id int32, lat, lng float64, status domain.BottleStatus) (*domain.Bottle, error)
 	// ListActive returns all bottles currently drifting that have been released.
 	ListActive(ctx context.Context) ([]domain.Bottle, error)
+	// ListOcean returns up to limit drifting bottles for the ambient map.
+	ListOcean(ctx context.Context, limit int32) ([]domain.Bottle, error)
 	ReleaseScheduled(ctx context.Context) ([]domain.Bottle, error)
 	FindNearby(ctx context.Context, params FindNearbyParams) (*domain.CursorResult[domain.Bottle], error)
 
@@ -123,10 +125,30 @@ func (r *postgresBottleRepo) ListActive(ctx context.Context) ([]domain.Bottle, e
 	return bottles, nil
 }
 
+func (r *postgresBottleRepo) ListOcean(ctx context.Context, limit int32) ([]domain.Bottle, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := r.q.ListOceanBottles(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	bottles := make([]domain.Bottle, 0, len(rows))
+	for _, row := range rows {
+		bottles = append(bottles, *mapBottle(row))
+	}
+	return bottles, nil
+}
+
 func (r *postgresBottleRepo) FindNearby(ctx context.Context, params FindNearbyParams) (*domain.CursorResult[domain.Bottle], error) {
 	var cursorID int32
 	if params.Cursor != nil {
 		cursorID = *params.Cursor
+	}
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 20
 	}
 
 	rows, err := r.q.GetNearbyBottles(ctx, ocealis.GetNearbyBottlesParams{
@@ -134,14 +156,15 @@ func (r *postgresBottleRepo) FindNearby(ctx context.Context, params FindNearbyPa
 		Lng:       params.Lng,
 		RadiusDeg: params.RadiusDeg,
 		CursorID:  pgtype.Int4{Int32: cursorID, Valid: params.Cursor != nil},
+		RowLimit:  limit + 1,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("find nearby bottles: %w", err)
 	}
 
-	hasMore := len(rows) > int(params.Limit)
+	hasMore := len(rows) > int(limit)
 	if hasMore {
-		rows = rows[:params.Limit] // trim the extra record
+		rows = rows[:limit]
 	}
 
 	bottles := make([]domain.Bottle, 0, len(rows))

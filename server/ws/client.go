@@ -139,7 +139,8 @@ func validateTopic(topic string) error {
 	}
 
 	switch topic {
-	case "region:north_atlantic",
+	case "ocean:all",
+		"region:north_atlantic",
 		"region:south_atlantic",
 		"region:north_pacific",
 		"region:south_pacific",

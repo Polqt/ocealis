@@ -179,16 +179,17 @@ FROM bottle_events
 WHERE bottle_id = $1
   AND ($2::int IS NULL OR id < $2::int)
 ORDER BY id DESC
-LIMIT 3
+LIMIT $3::int
 `
 
 type GetBottleEventsPaginatedParams struct {
 	BottleID pgtype.Int4
 	CursorID pgtype.Int4
+	RowLimit int32
 }
 
 func (q *Queries) GetBottleEventsPaginated(ctx context.Context, arg GetBottleEventsPaginatedParams) ([]BottleEvent, error) {
-	rows, err := q.db.Query(ctx, getBottleEventsPaginated, arg.BottleID, arg.CursorID)
+	rows, err := q.db.Query(ctx, getBottleEventsPaginated, arg.BottleID, arg.CursorID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +228,7 @@ WHERE status = 'drifting'
                       AND $3::float8 + $2::float8
   AND ($4::int IS NULL OR id < $4::int)
 ORDER BY id DESC
-LIMIT 5
+LIMIT $5::int
 `
 
 type GetNearbyBottlesParams struct {
@@ -235,6 +236,7 @@ type GetNearbyBottlesParams struct {
 	RadiusDeg float64
 	Lng       float64
 	CursorID  pgtype.Int4
+	RowLimit  int32
 }
 
 func (q *Queries) GetNearbyBottles(ctx context.Context, arg GetNearbyBottlesParams) ([]Bottle, error) {
@@ -243,6 +245,7 @@ func (q *Queries) GetNearbyBottles(ctx context.Context, arg GetNearbyBottlesPara
 		arg.RadiusDeg,
 		arg.Lng,
 		arg.CursorID,
+		arg.RowLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -296,10 +299,53 @@ const listActiveDriftingBottles = `-- name: ListActiveDriftingBottles :many
 SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 FROM bottles
 WHERE status = 'drifting' AND is_release = TRUE
+ORDER BY id DESC
 `
 
 func (q *Queries) ListActiveDriftingBottles(ctx context.Context) ([]Bottle, error) {
 	rows, err := q.db.Query(ctx, listActiveDriftingBottles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Bottle
+	for rows.Next() {
+		var i Bottle
+		if err := rows.Scan(
+			&i.ID,
+			&i.SenderID,
+			&i.MessageText,
+			&i.BottleStyle,
+			&i.StartLat,
+			&i.StartLng,
+			&i.CurrentLat,
+			&i.CurrentLng,
+			&i.Hops,
+			&i.Status,
+			&i.ScheduledRelease,
+			&i.IsRelease,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOceanBottles = `-- name: ListOceanBottles :many
+SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+FROM bottles
+WHERE status = 'drifting' AND is_release = TRUE
+ORDER BY id DESC
+LIMIT $1::int
+`
+
+func (q *Queries) ListOceanBottles(ctx context.Context, rowLimit int32) ([]Bottle, error) {
+	rows, err := q.db.Query(ctx, listOceanBottles, rowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -377,11 +423,7 @@ func (q *Queries) ListScheduledBottles(ctx context.Context) ([]Bottle, error) {
 
 const updateBottlePosition = `-- name: UpdateBottlePosition :one
 UPDATE bottles
-SET current_lat = $2,
-    current_lng = $3,
-    hops = hops + 1,
-    status = $4,
-    is_release = CASE WHEN $4 = 'drifting' THEN TRUE ELSE is_release END
+SET current_lat = $2, current_lng = $3, hops = hops + 1, status = $4
 WHERE id = $1
 RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 `

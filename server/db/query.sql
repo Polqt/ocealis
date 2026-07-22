@@ -9,8 +9,8 @@ SELECT id, nickname, avatar_url, created_at FROM users WHERE id = $1;
 -- start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 
 -- name: CreateBottle :one
-INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, is_release, scheduled_release)
-VALUES ($1, $2, $3, $4, $5, $4, $5, TRUE, $6)
+INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, status, is_release, scheduled_release)
+VALUES ($1, $2, $3, $4, $5, $4, $5, $6, $7, $8)
 RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at;
 
 -- name: GetBottle :one
@@ -30,7 +30,15 @@ RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, curre
 -- name: ListActiveDriftingBottles :many
 SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 FROM bottles
-WHERE status = 'drifting' AND is_release = TRUE;
+WHERE status = 'drifting' AND is_release = TRUE
+ORDER BY id DESC;
+
+-- name: ListOceanBottles :many
+SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+FROM bottles
+WHERE status = 'drifting' AND is_release = TRUE
+ORDER BY id DESC
+LIMIT sqlc.arg(row_limit)::int;
 
 -- name: CreateBottleEvent :one
 INSERT INTO bottle_events (bottle_id, event_type, lat, lng)
@@ -55,7 +63,7 @@ FROM bottle_events
 WHERE bottle_id = sqlc.arg(bottle_id)
   AND (sqlc.narg(cursor_id)::int IS NULL OR id < sqlc.narg(cursor_id)::int)
 ORDER BY id DESC
-LIMIT 3;
+LIMIT sqlc.arg(row_limit)::int;
 
 -- name: GetNearbyBottles :many
 SELECT id, sender_id, message_text, bottle_style,
@@ -70,4 +78,4 @@ WHERE status = 'drifting'
                       AND sqlc.arg(lng)::float8 + sqlc.arg(radius_deg)::float8
   AND (sqlc.narg(cursor_id)::int IS NULL OR id < sqlc.narg(cursor_id)::int)
 ORDER BY id DESC
-LIMIT 5;
+LIMIT sqlc.arg(row_limit)::int;

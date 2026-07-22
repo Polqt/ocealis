@@ -64,17 +64,14 @@ func (s *discoverService) FindNearby(ctx context.Context, input FindNearbyInput)
 	lngDeg := radius / (kmPerDegree * math.Abs(cosLat))
 	radiusDeg := math.Max(latDeg, lngDeg)
 
-	// Fetch limit+1 from DB to detect hasMore, same pattern as event pagination.
-	// We do NOT multiply by 3 here because we're no longer over-filtering.
-	// The Haversine pass will discard bounding-box corners but we accept
-	// that the page might be slightly shorter than limit as a result.
-	// This is correct behavior, the client just gets fewer results, not wrong ones.
+	// Repository fetches limit+1 for hasMore. Haversine may trim corners,
+	// so a page can be slightly shorter than limit — that is intentional.
 	raw, err := s.bottles.FindNearby(ctx, repository.FindNearbyParams{
 		Lat:       input.Lat,
 		Lng:       input.Lng,
 		RadiusDeg: radiusDeg,
 		Cursor:    input.Cursor,
-		Limit:     int32(limit) + 1, // fetch more than needed, will filter precisely below
+		Limit:     limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("find nearby bottles:%w", err)

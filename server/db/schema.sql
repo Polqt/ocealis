@@ -21,6 +21,9 @@ CREATE TABLE bottles (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX bottles_drifting_idx ON bottles (status, is_release) WHERE status = 'drifting' AND is_release = TRUE;
+CREATE INDEX bottles_position_idx ON bottles (current_lat, current_lng) WHERE status = 'drifting' AND is_release = TRUE;
+
 CREATE TABLE bottle_events (
     id SERIAL PRIMARY KEY,
     bottle_id INTEGER REFERENCES bottles(id),
@@ -29,3 +32,5 @@ CREATE TABLE bottle_events (
     lng DOUBLE PRECISION,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX bottle_events_bottle_id_idx ON bottle_events (bottle_id, id DESC);

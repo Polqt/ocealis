@@ -88,12 +88,21 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 
 		var err error
 
+		status := domain.BottleStatusDrifting
+		isReleased := true
+		if isScheduled {
+			status = domain.BottleStatusScheduled
+			isReleased = false
+		}
+
 		bottle, err = bottlesTx.Create(ctx, repository.CreateBottleParams{
 			SenderID:    input.SenderID,
 			MessageText: input.MessageText,
 			BottleStyle: input.BottleStyle,
 			StartLat:    input.StartLat,
 			StartLng:    input.StartLng,
+			Status:      status,
+			IsReleased:  isReleased,
 			IsScheduled: isScheduled,
 			ScheduledRelease: pgtype.Timestamptz{
 				Time:  releaseAt,

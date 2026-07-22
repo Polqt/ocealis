@@ -10,6 +10,10 @@ node_modules/
 dist/
 build/
 out/
+.output/
+.vinxi/
+client/.output/
+client/.vinxi/
 
 # OS files
 .DS_Store

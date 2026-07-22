@@ -48,36 +48,36 @@ func NewBroadcaster(hub *Hub, log *zap.Logger) *Broadcaster {
 }
 
 func (b *Broadcaster) BroadcastDrift(payload DriftPayload) {
-	// Subscribe watching a specific bottle get full drift updates
 	bottleTopic := fmt.Sprintf("bottle:%d", payload.BottleID)
-
 	b.broadcastTopic(bottleTopic, MsgBottleDrift, payload)
 
-	// Subscribers watching a region get a lighter position update without the bottle style or hops,
-	// which are only relevant to bottle-specific subscribers.
 	regionTopic := regionForCoords(payload.Lat, payload.Lng)
 	b.broadcastTopic(regionTopic, MsgBottleDrift, payload)
 
+	// Ambient map clients subscribe once to ocean:all.
+	b.broadcastTopic("ocean:all", MsgBottleDrift, payload)
 }
 
 func (b *Broadcaster) BroadcastDiscovered(bottleID int32) {
 	topic := fmt.Sprintf("bottle:%d", bottleID)
 	b.broadcastTopic(topic, MsgBottleDiscovered, map[string]int32{"bottle_id": bottleID})
+	b.broadcastTopic("ocean:all", MsgBottleDiscovered, map[string]int32{"bottle_id": bottleID})
 }
 
 func (b *Broadcaster) BroadcastReleased(bottleID int32) {
-	// New bottles broadcast globally — everyone might want to see a new bottle appear
+	// New bottles: notify ambient ocean viewers and any global listeners.
+	b.broadcastTopic("ocean:all", MsgBottleReleased, map[string]int32{"bottle_id": bottleID})
 	b.broadcast(MsgBottleReleased, map[string]int32{"bottle_id": bottleID})
 }
 
-func (b *Broadcaster) broadcastTopic(_ string, msgType MessageType, payload any) {
+func (b *Broadcaster) broadcastTopic(topic string, msgType MessageType, payload any) {
 	msg := Message{Type: msgType, Payload: payload}
 	data, err := json.Marshal(msg)
 	if err != nil {
 		b.log.Error("failed to marshal broadcast message", zap.Error(err))
 		return
 	}
-	b.hub.Broadcast(data)
+	b.hub.BroadcastTopic(topic, data)
 }
 
 func (b *Broadcaster) broadcast(msgType MessageType, payload any) {
