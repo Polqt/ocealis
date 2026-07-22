@@ -1,8 +1,8 @@
 import type { Bottle, Journey, User } from "./types";
 
-// Empty = same origin (Vite proxies /api and /ws to the Go server in dev).
-// Set VITE_API_URL=http://127.0.0.1:8080 only if you intentionally bypass the proxy.
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+// Dev default: Vite proxies /backend → Go :8080 (avoids SolidStart /api conflict + CORS).
+// Override with VITE_API_URL=http://127.0.0.1:8080 for direct calls.
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "/backend";
 
 const TOKEN_KEY = "ocealis_token";
 const USER_KEY = "ocealis_user";
@@ -113,12 +113,14 @@ export function apiBase(): string {
 }
 
 export function wsUrl(): string {
-  if (API_URL) {
+  // Direct absolute API URL
+  if (API_URL.startsWith("http://") || API_URL.startsWith("https://")) {
     return `${API_URL.replace(/^http/, "ws")}/ws`;
   }
+  // Proxied same-origin path (/backend → use /backend-ws)
   if (typeof window === "undefined") {
     return "ws://127.0.0.1:8080/ws";
   }
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/ws`;
+  return `${proto}//${window.location.host}/backend-ws`;
 }

@@ -57,7 +57,7 @@ pnpm dev
 # http://localhost:3000
 ```
 
-Dev uses a Vite proxy: browser calls `/api` and `/ws` on `:3000`, which forward to the Go API on `127.0.0.1:8080` (no CORS). Only set `VITE_API_URL` if you intentionally bypass the proxy.
+Dev uses a Vite proxy: browser calls `/backend/*` and `/backend-ws` on `:3000`, which forward to the Go API on `127.0.0.1:8080` (no CORS). Do **not** proxy `/api` — SolidStart owns that path. Optional: `VITE_API_URL=http://127.0.0.1:8080` for direct calls.
 
 ## Core loop
 

@@ -104,7 +104,9 @@ export default function OceanHome() {
         </header>
 
         <Show when={error()}>
-          <p class="banner-error">{error()} — is the API running on :8080?</p>
+          <p class="banner-error">
+            {error()} — start the Go API (`cd server && go run .`), then hard-refresh.
+          </p>
         </Show>
       </div>
 

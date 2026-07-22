@@ -5,16 +5,19 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     server: {
-      // Same-origin in dev — avoids browser CORS against :8080 entirely.
+      // Do NOT proxy "/api" — SolidStart/Vinxi owns that path and returns
+      // unrelated 400s (e.g. "Missing X-Agent-ID header").
       proxy: {
-        "/api": {
+        "/backend": {
           target: "http://127.0.0.1:8080",
-          changeOrigin: true
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/backend/, "")
         },
-        "/ws": {
+        "/backend-ws": {
           target: "ws://127.0.0.1:8080",
           ws: true,
-          changeOrigin: true
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/backend-ws/, "/ws")
         }
       }
     }
