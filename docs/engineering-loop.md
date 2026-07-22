@@ -10,20 +10,18 @@ How to build v1 without melting context windows or overbuilding. Product truth: 
 - **YAGNI.** If it is in PRD Out of Scope, agents must not “helpfully” add it.
 - **No commit/push unless the human explicitly asks.**
 
-## Driver: `/ocealis-next` (not a forever loop)
+## Driver commands (slash)
 
-Slash command: `.cursor/commands/ocealis-next.md`
-
-| Thing | Meaning |
+| Command | Role |
 | --- | --- |
-| **What it is** | One-shot agent run: pick next eligible issue → implement → mark done → **stop** |
-| **What it is not** | Unattended “finish all 10 issues” loop |
-| **Your job** | Type `/ocealis-next` (prefer **new chat** each time) when you want another slice |
-| **Agent job** | Do the engineering for that one issue |
+| `/ocealis-next` | **Implement** next eligible issue (one shot) |
+| `/ocealis-plan` | **Plan** / grill — no code |
+| `/ocealis-qa` | **QA / review** last slice — findings only |
+| `/ocealis-design-ui` | **Frontend design** for a UI slice |
 
-This *is* agentic engineering — automated **per slice**. Full auto-chain (agent starts 03 when 02 finishes with no human) is optional later via Cloud Agent / Automation; keep human gate until you trust the queue.
+Backend + infra stay inside `/ocealis-next` when the issue is server/Fly (issues 00–09 already cover that). Do not invent parallel “do all layers” mega-agent.
 
-Prefer **new Agent chat** + `/ocealis-next` over stacking many slices in one window.
+Cloud Automation (optional): schedule or webhook runs the **same** `/ocealis-next` prompt on `Polqt/ocealis` — still one issue per run.
 
 ## Loop (repeat per issue)
 
