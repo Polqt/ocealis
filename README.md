@@ -24,16 +24,18 @@ The product is the journey: persistence, motion, and surprise on a living map.
 ### Database
 
 ```bash
-# Create DB, then apply schema (or use migrations)
+# Create DB once (skip if you already have ocealis)
 createdb ocealis
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/ocealis?sslmode=disable
 
-# Apply migrations with golang-migrate, goose, or plain psql:
+# Apply schema — safe to re-run (IF NOT EXISTS). Skip if tables already exist.
 psql "$DATABASE_URL" -f server/db/schema.sql
 
-# Or:
+# Or from server/:
 make migrate
 ```
+
+If `psql` reports `relation "users" already exists`, your database is already set up — continue to the server step.
 
 ### Server
 
