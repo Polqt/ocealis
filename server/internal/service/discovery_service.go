@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/Polqt/ocealis/internal/discovery"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
 	"github.com/Polqt/ocealis/util"
@@ -32,8 +33,17 @@ type BottleWithDistance struct {
 	DistanceKm float64 `json:"distance_km"`
 }
 
+type BrowseMapInput struct {
+	MinLat float64
+	MaxLat float64
+	MinLng float64
+	MaxLng float64
+	Zoom   float64
+}
+
 type DiscoveryService interface {
 	FindNearby(ctx context.Context, input FindNearbyInput) (*domain.CursorResult[BottleWithDistance], error)
+	BrowseMap(ctx context.Context, input BrowseMapInput) (discovery.MapResult, error)
 }
 
 type discoverService struct {
@@ -42,6 +52,21 @@ type discoverService struct {
 
 func NewDiscoveryService(bottles repository.BottleRepository) DiscoveryService {
 	return &discoverService{bottles: bottles}
+}
+
+func (s *discoverService) BrowseMap(ctx context.Context, input BrowseMapInput) (discovery.MapResult, error) {
+	active, err := s.bottles.ListActive(ctx)
+	if err != nil {
+		return discovery.MapResult{}, fmt.Errorf("list active bottles: %w", err)
+	}
+	// Seeds always in Ocean — no Mystery Delay, sea never empty.
+	all := append(discovery.Seeds(), active...)
+	return discovery.QueryOcean(input.Zoom, discovery.Viewport{
+		MinLat: input.MinLat,
+		MaxLat: input.MaxLat,
+		MinLng: input.MinLng,
+		MaxLng: input.MaxLng,
+	}, all), nil
 }
 
 func (s *discoverService) FindNearby(ctx context.Context, input FindNearbyInput) (*domain.CursorResult[BottleWithDistance], error) {
@@ -82,6 +107,10 @@ func (s *discoverService) FindNearby(ctx context.Context, input FindNearbyInput)
 
 	filtered := make([]BottleWithDistance, 0, len(raw.Data))
 	for _, b := range raw.Data {
+		// Defense in depth: Mystery Delay bottles stay invisible even if SQL drifts.
+		if b.Status == domain.BottleStatusMysteryDelay || !b.IsReleased {
+			continue
+		}
 		dist := util.HaversineKm(input.Lat, input.Lng, b.CurrentLat, b.CurrentLng)
 		if dist <= radius {
 			filtered = append(filtered, BottleWithDistance{

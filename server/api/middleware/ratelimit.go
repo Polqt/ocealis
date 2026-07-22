@@ -36,8 +36,7 @@ func StrictRateLimit() fiber.Handler {
 	})
 }
 
-// User Rate Limit is JWT-aware - keys by user_id for authenticated authenticated routes.
-// Falls back to IP if no user_id is present (shouldn't happen on auth routes)
+// UserRateLimit — quarantined JWT-keyed limiter. Product routes use RateLimit / StrictRateLimit (IP).
 func UserRateLimit(max int, expiration time.Duration) fiber.Handler {
 	return limiter.New(limiter.Config{
 		Max:        max,

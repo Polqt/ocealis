@@ -13,6 +13,7 @@ import (
 
 type CreateBottleParams struct {
 	SenderID         int32
+	Nickname         string
 	MessageText      string
 	BottleStyle      int32
 	StartLat         float64
@@ -62,6 +63,7 @@ func (r *postgresBottleRepo) WithTx(q *ocealis.Queries) BottleRepository {
 func (r *postgresBottleRepo) Create(ctx context.Context, params CreateBottleParams) (*domain.Bottle, error) {
 	row, err := r.q.CreateBottle(ctx, ocealis.CreateBottleParams{
 		SenderID:         pgtype.Int4{Int32: params.SenderID, Valid: true},
+		Nickname:         params.Nickname,
 		MessageText:      params.MessageText,
 		BottleStyle:      pgtype.Int4{Int32: params.BottleStyle, Valid: true},
 		StartLat:         pgtype.Float8{Float64: params.StartLat, Valid: true},
@@ -165,6 +167,7 @@ func (r *postgresBottleRepo) FindNearby(ctx context.Context, params FindNearbyPa
 func mapBottle(row ocealis.Bottle) *domain.Bottle {
 	b := &domain.Bottle{
 		ID:          row.ID,
+		Nickname:    row.Nickname,
 		MessageText: row.MessageText,
 		Status:      domain.BottleStatus(row.Status),
 	}
@@ -197,6 +200,7 @@ func mapBottle(row ocealis.Bottle) *domain.Bottle {
 	}
 	if row.ScheduledRelease.Valid {
 		b.ScheduledRelease = row.ScheduledRelease.Time
+		b.VisibleAt = row.ScheduledRelease.Time // Mystery Delay end
 	}
 	if row.IsRelease.Valid {
 		b.IsReleased = row.IsRelease.Bool

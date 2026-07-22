@@ -1,18 +1,183 @@
 @import "tailwindcss";
 
 :root {
-  --background-rgb: 214, 219, 220;
-  --foreground-rgb: 0, 0, 0;
+  --sea-deep: #0a2a3a;
+  --sea-mid: #134e6a;
+  --sea-foam: #c8e7f0;
+  --ink: #e8f4f8;
+  --accent: #f0c27b;
+  --danger: #ff8a7a;
+  --font-display: "Fraunces", "Palatino Linotype", Palatino, serif;
+  --font-body: "Source Sans 3", "Segoe UI", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background-rgb: 0, 0, 0;
-    --foreground-rgb: 255, 255, 255;
-  }
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: local("Fraunces"), local("Georgia");
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: local("Source Sans 3"), local("Segoe UI");
 }
 
 body {
-  background: rgb(var(--background-rgb));
-  color: rgb(var(--foreground-rgb));
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--sea-deep);
+}
+
+.cast-nav {
+  position: absolute;
+  z-index: 2;
+  top: 1rem;
+  left: 1.25rem;
+}
+
+.cast-nav__brand {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  color: var(--sea-foam);
+  text-decoration: none;
+  opacity: 0.85;
+}
+
+.cast-page {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 4rem 1.25rem 2rem;
+  overflow: hidden;
+}
+
+.cast-sea {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 110%, rgba(240, 194, 123, 0.12), transparent 55%),
+    linear-gradient(180deg, #061820 0%, var(--sea-deep) 35%, var(--sea-mid) 100%);
+  animation: sea-breathe 12s ease-in-out infinite alternate;
+}
+
+@keyframes sea-breathe {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.08);
+  }
+}
+
+.cast-panel {
+  position: relative;
+  z-index: 1;
+  width: min(28rem, 100%);
+  animation: rise 0.7s ease-out;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cast-brand {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 8vw, 3.4rem);
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.02em;
+  color: var(--sea-foam);
+}
+
+.cast-panel h1 {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  margin: 0 0 0.4rem;
+  color: var(--ink);
+}
+
+.cast-lede,
+.cast-out p {
+  margin: 0 0 1.4rem;
+  opacity: 0.8;
+  line-height: 1.45;
+}
+
+.cast-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.cast-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.cast-form input,
+.cast-form textarea {
+  font: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+  background: rgba(6, 24, 32, 0.55);
+  border: 1px solid rgba(200, 231, 240, 0.25);
+  border-radius: 0;
+  padding: 0.7rem 0.8rem;
+  outline: none;
+}
+
+.cast-form input:focus,
+.cast-form textarea:focus {
+  border-color: var(--accent);
+}
+
+.cast-btn {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  padding: 0.85rem 1.2rem;
+  border: none;
+  background: var(--accent);
+  color: #1a1208;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.cast-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.cast-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.cast-error {
+  color: var(--danger);
+  margin: 0;
+}
+
+.cast-out h1 {
+  font-size: clamp(1.8rem, 5vw, 2.4rem);
+  margin-bottom: 0.75rem;
 }

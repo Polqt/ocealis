@@ -7,6 +7,9 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
+// UserHandler is quarantined — JWT create/login is not product v1 (PRD US28).
+// Routes are not registered in api.RegisterRoutes.
+
 type createUserRequest struct {
 	Nickname  string `json:"nickname" validate:"required,min=3,max=20"`
 	AvatarURL string `json:"avatar_url" validate:"omitempty,url"`
@@ -24,8 +27,6 @@ func NewUserHandler(svc service.UserService) *UserHandler {
 	}
 }
 
-// Create a new user
-// Create an anonymous user with a nickname and optional avatar URL. The nickname must be between 3 and 20 characters, and the avatar URL must be a valid URL if provided.
 func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 	var req createUserRequest
 	if err := c.Bind().JSON(&req); err != nil {
@@ -54,9 +55,6 @@ func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 	})
 }
 
-// GetUser returns the profile of the currently authenticated user.
-// The user ID is extracted from the JWT claim injected by Auth middleware—
-// the route /users/profile has no :id path parameter.
 func (h *UserHandler) GetUser(c fiber.Ctx) error {
 	userID, ok := middleware.UserIDFromCtx(c)
 	if !ok {

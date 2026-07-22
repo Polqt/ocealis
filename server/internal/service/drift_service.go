@@ -156,7 +156,7 @@ func (s *driftService) ReleaseScheduled(ctx context.Context) error {
 
 			if _, err := eventsTx.Create(ctx, repository.CreateEventParams{
 				BottleID:  bottle.ID,
-				EventType: domain.EventTypeReleased,
+				EventType: domain.EventTypeCast,
 				Lat:       bottle.StartLat,
 				Lng:       bottle.StartLng,
 			}); err != nil {

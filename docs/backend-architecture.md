@@ -1,5 +1,7 @@
 # Ocealis Backend Architecture
 
+> Product truth: [`prd-v1.md`](./prd-v1.md) + [`../CONTEXT.md`](../CONTEXT.md). If this doc conflicts with the PRD (especially auth/JWT), the PRD wins.
+
 ## Product Direction
 
 Ocealis should feel less like a CRUD app and more like a living simulation:

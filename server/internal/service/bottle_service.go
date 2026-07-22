@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/Polqt/ocealis/db"
 	"github.com/Polqt/ocealis/db/ocealis"
+	"github.com/Polqt/ocealis/internal/cast"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
-	"github.com/Polqt/ocealis/util"
 	"github.com/Polqt/ocealis/ws"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,12 +24,12 @@ var (
 )
 
 type CreateBottleInput struct {
-	SenderID    int32
+	Nickname    string
 	MessageText string
 	BottleStyle int32
-	StartLat    float64
-	StartLng    float64
-	ReleaseAt   *time.Time
+	// StartLat/StartLng nil → BasinFallback inside Cast plan.
+	StartLat *float64
+	StartLng *float64
 }
 
 type DiscoverBottleInput struct {
@@ -63,40 +64,30 @@ func NewBottleService(
 }
 
 func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInput) (*domain.Bottle, error) {
-	// Sanitize before anything else - never store raw user html
-	input.MessageText = util.SanitizeMessage(input.MessageText)
-
-	// Reject empty messages after sanitization
-	// (a message that was only tags would become an empty string)
-	if input.MessageText == "" {
-		return nil, errors.New("message text cannot be empty")
-	}
-
-	releaseAt := time.Now()
-	isScheduled := false
-
-	if input.ReleaseAt != nil && input.ReleaseAt.After(time.Now()) {
-		releaseAt = *input.ReleaseAt
-		isScheduled = true // future release - don't broadcast now, will be handled by a scheduler
+	plan, err := cast.Prepare(input.Nickname, input.MessageText, input.StartLat, input.StartLng, time.Now(), rand.New(rand.NewSource(time.Now().UnixNano())))
+	if err != nil {
+		return nil, err
 	}
 
 	var bottle *domain.Bottle
 
-	err := db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
+	err = db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
 		bottlesTx := s.bottles.WithTx(q)
 		eventsTx := s.events.WithTx(q)
 
 		var err error
-
 		bottle, err = bottlesTx.Create(ctx, repository.CreateBottleParams{
-			SenderID:    input.SenderID,
-			MessageText: input.MessageText,
+			SenderID:    0,
+			Nickname:    plan.Nickname,
+			MessageText: plan.MessageText,
 			BottleStyle: input.BottleStyle,
-			StartLat:    input.StartLat,
-			StartLng:    input.StartLng,
-			IsScheduled: isScheduled,
+			StartLat:    plan.Lat,
+			StartLng:    plan.Lng,
+			IsScheduled: true,
+			Status:      plan.Status,
+			IsReleased:  plan.IsReleased,
 			ScheduledRelease: pgtype.Timestamptz{
-				Time:  releaseAt,
+				Time:  plan.VisibleAt,
 				Valid: true,
 			},
 		})
@@ -104,15 +95,14 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 			return fmt.Errorf("create bottle:%w", err)
 		}
 
-		if !isScheduled {
-			if _, err = eventsTx.Create(ctx, repository.CreateEventParams{
-				BottleID:  bottle.ID,
-				EventType: domain.EventTypeReleased,
-				Lat:       input.StartLat,
-				Lng:       input.StartLng,
-			}); err != nil {
-				return fmt.Errorf("create release event:%w", err)
-			}
+		// Cast Journey event at drop coords even while invisible (Mystery Delay).
+		if _, err = eventsTx.Create(ctx, repository.CreateEventParams{
+			BottleID:  bottle.ID,
+			EventType: domain.EventTypeCast,
+			Lat:       plan.Lat,
+			Lng:       plan.Lng,
+		}); err != nil {
+			return fmt.Errorf("create cast event:%w", err)
 		}
 
 		return nil
@@ -121,9 +111,7 @@ func (s *bottleService) CreateBottle(ctx context.Context, input CreateBottleInpu
 		return nil, err
 	}
 
-	if !isScheduled {
-		s.bc.BroadcastReleased(bottle.ID)
-	}
+	// No broadcast during Mystery Delay — Cork appears after scheduler flip.
 	return bottle, nil
 }
 
@@ -158,11 +146,11 @@ func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottle
 		return nil, ErrBottleNotFound
 	}
 
-	if bottle.SenderID == input.DiscoverID {
+	if input.DiscoverID != 0 && bottle.SenderID == input.DiscoverID {
 		return nil, ErrSenderCannotDiscover
 	}
 
-	if bottle.Status == domain.BottleStatusDiscovered {
+	if bottle.Status == domain.BottleStatusClaimed {
 		return nil, ErrAlreadyDiscovered
 	}
 
@@ -172,14 +160,14 @@ func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottle
 
 		if _, err = eventsTx.Create(ctx, repository.CreateEventParams{
 			BottleID:  bottle.ID,
-			EventType: domain.EventTypeDiscovered,
+			EventType: domain.EventTypeOpenedLegacy,
 			Lat:       input.UserLat,
 			Lng:       input.UserLng,
 		}); err != nil {
 			return fmt.Errorf("create discovered event:%w", err)
 		}
 
-		if _, err := bottlesTx.UpdateStatus(ctx, bottle.ID, domain.BottleStatusDiscovered); err != nil {
+		if _, err := bottlesTx.UpdateStatus(ctx, bottle.ID, domain.BottleStatusClaimed); err != nil {
 			return fmt.Errorf("update bottle status:%w", err)
 		}
 

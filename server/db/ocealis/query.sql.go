@@ -12,14 +12,14 @@ import (
 )
 
 const createBottle = `-- name: CreateBottle :one
-
-INSERT INTO bottles (sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, status, is_release, scheduled_release)
-VALUES ($1, $2, $3, $4, $5, $4, $5, $6, $7, $8)
-RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+INSERT INTO bottles (sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, status, is_release, scheduled_release)
+VALUES ($1, $2, $3, $4, $5, $6, $5, $6, $7, $8, $9)
+RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 `
 
 type CreateBottleParams struct {
 	SenderID         pgtype.Int4
+	Nickname         string
 	MessageText      string
 	BottleStyle      pgtype.Int4
 	StartLat         pgtype.Float8
@@ -29,11 +29,10 @@ type CreateBottleParams struct {
 	ScheduledRelease pgtype.Timestamptz
 }
 
-// Canonical column order for bottles: id, sender_id, message_text, bottle_style,
-// start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 func (q *Queries) CreateBottle(ctx context.Context, arg CreateBottleParams) (Bottle, error) {
 	row := q.db.QueryRow(ctx, createBottle,
 		arg.SenderID,
+		arg.Nickname,
 		arg.MessageText,
 		arg.BottleStyle,
 		arg.StartLat,
@@ -46,6 +45,7 @@ func (q *Queries) CreateBottle(ctx context.Context, arg CreateBottleParams) (Bot
 	err := row.Scan(
 		&i.ID,
 		&i.SenderID,
+		&i.Nickname,
 		&i.MessageText,
 		&i.BottleStyle,
 		&i.StartLat,
@@ -116,7 +116,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getBottle = `-- name: GetBottle :one
-SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+SELECT id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 FROM bottles WHERE id = $1
 `
 
@@ -126,6 +126,7 @@ func (q *Queries) GetBottle(ctx context.Context, id int32) (Bottle, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.SenderID,
+		&i.Nickname,
 		&i.MessageText,
 		&i.BottleStyle,
 		&i.StartLat,
@@ -215,7 +216,7 @@ func (q *Queries) GetBottleEventsPaginated(ctx context.Context, arg GetBottleEve
 }
 
 const getNearbyBottles = `-- name: GetNearbyBottles :many
-SELECT id, sender_id, message_text, bottle_style,
+SELECT id, sender_id, nickname, message_text, bottle_style,
        start_lat, start_lng, current_lat, current_lng,
        hops, status, scheduled_release, is_release, created_at
 FROM bottles
@@ -254,6 +255,7 @@ func (q *Queries) GetNearbyBottles(ctx context.Context, arg GetNearbyBottlesPara
 		if err := rows.Scan(
 			&i.ID,
 			&i.SenderID,
+			&i.Nickname,
 			&i.MessageText,
 			&i.BottleStyle,
 			&i.StartLat,
@@ -293,7 +295,7 @@ func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
 }
 
 const listActiveDriftingBottles = `-- name: ListActiveDriftingBottles :many
-SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+SELECT id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 FROM bottles
 WHERE status = 'drifting' AND is_release = TRUE
 `
@@ -310,6 +312,7 @@ func (q *Queries) ListActiveDriftingBottles(ctx context.Context) ([]Bottle, erro
 		if err := rows.Scan(
 			&i.ID,
 			&i.SenderID,
+			&i.Nickname,
 			&i.MessageText,
 			&i.BottleStyle,
 			&i.StartLat,
@@ -333,7 +336,7 @@ func (q *Queries) ListActiveDriftingBottles(ctx context.Context) ([]Bottle, erro
 }
 
 const listScheduledBottles = `-- name: ListScheduledBottles :many
-SELECT id, sender_id, message_text, bottle_style, start_lat, start_lng,
+SELECT id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng,
        current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 FROM bottles
 WHERE is_release = FALSE
@@ -353,6 +356,7 @@ func (q *Queries) ListScheduledBottles(ctx context.Context) ([]Bottle, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.SenderID,
+			&i.Nickname,
 			&i.MessageText,
 			&i.BottleStyle,
 			&i.StartLat,
@@ -383,7 +387,7 @@ SET current_lat = $2,
     status = $4,
     is_release = CASE WHEN $4 = 'drifting' THEN TRUE ELSE is_release END
 WHERE id = $1
-RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 `
 
 type UpdateBottlePositionParams struct {
@@ -404,6 +408,7 @@ func (q *Queries) UpdateBottlePosition(ctx context.Context, arg UpdateBottlePosi
 	err := row.Scan(
 		&i.ID,
 		&i.SenderID,
+		&i.Nickname,
 		&i.MessageText,
 		&i.BottleStyle,
 		&i.StartLat,
@@ -421,7 +426,7 @@ func (q *Queries) UpdateBottlePosition(ctx context.Context, arg UpdateBottlePosi
 
 const updateBottleStatus = `-- name: UpdateBottleStatus :one
 UPDATE bottles SET status = $2 WHERE id = $1
-RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 `
 
 type UpdateBottleStatusParams struct {
@@ -435,6 +440,7 @@ func (q *Queries) UpdateBottleStatus(ctx context.Context, arg UpdateBottleStatus
 	err := row.Scan(
 		&i.ID,
 		&i.SenderID,
+		&i.Nickname,
 		&i.MessageText,
 		&i.BottleStyle,
 		&i.StartLat,

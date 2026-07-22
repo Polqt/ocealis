@@ -10,6 +10,7 @@ import (
 
 	"github.com/Polqt/ocealis/api"
 	"github.com/Polqt/ocealis/api/handler"
+	"github.com/Polqt/ocealis/api/middleware"
 	"github.com/Polqt/ocealis/db"
 	dbGen "github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/repository"
@@ -37,20 +38,20 @@ func main() {
 
 	bottleRepo := repository.NewBottleRepository(queries)
 	eventRepo := repository.NewEventRepository(queries)
-	userRepo := repository.NewUserRepository(queries)
+	// userRepo / JWT login quarantined — not product v1 (PRD US28).
 
 	hub := ws.NewHub()
 	broadcaster := ws.NewBroadcaster(hub, log)
 
 	bottleSvc := service.NewBottleService(db.Pool, bottleRepo, eventRepo, broadcaster)
-	userSvc := service.NewUserService(userRepo)
 	driftSvc := service.NewDriftService(db.Pool, bottleRepo, eventRepo, broadcaster, log)
 	discoverySvc := service.NewDiscoveryService(bottleRepo)
 
+	turnstile := &middleware.Turnstile{Secret: util.EnvString("TURNSTILE_SECRET", "")}
+
 	h := api.Handlers{
 		Health:    handler.NewHealthHandler(db.Pool, hub),
-		Bottle:    handler.NewBottleHandler(bottleSvc),
-		User:      handler.NewUserHandler(userSvc),
+		Bottle:    handler.NewBottleHandler(bottleSvc, turnstile),
 		Event:     handler.NewEventHandler(eventRepo),
 		Discovery: handler.NewDiscoveryHandler(discoverySvc),
 	}
@@ -77,7 +78,7 @@ func main() {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: []string{util.EnvString("CORS_ALLOWED_ORIGINS", "http://localhost:3000")},
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "CF-Turnstile-Response"},
 	}))
 
 	api.RegisterRoutes(app, h, hub, log)

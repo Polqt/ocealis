@@ -11,6 +11,7 @@ import (
 type Bottle struct {
 	ID               int32
 	SenderID         pgtype.Int4
+	Nickname         string
 	MessageText      string
 	BottleStyle      pgtype.Int4
 	StartLat         pgtype.Float8

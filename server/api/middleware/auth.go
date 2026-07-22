@@ -1,3 +1,5 @@
+// Package middleware: Auth/JWT is quarantined — not a v1 product path (CONTEXT.md, PRD US28).
+// Do not attach Auth() to Cast/Open/Stamp/Re-release/discovery routes.
 package middleware
 
 import (
@@ -22,8 +24,7 @@ func jwtSecret() string {
 	return secret
 }
 
-// Issue Token generates a JWT token for an anonymous user and returns it.
-// Called once when a user first visits the site, and the token is stored in localStorage for subsequent requests.
+// IssueToken — quarantined helper for non-product experiments only.
 func IssueToken(userID int32) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
@@ -34,8 +35,7 @@ func IssueToken(userID int32) (string, error) {
 	return token.SignedString([]byte(jwtSecret()))
 }
 
-// Auth Validates the bearer token on every protected route and extracts the user ID from the token claims, making it available in the request context for downstream handlers.
-// Injects userID into c.Locals for handlers to access.
+// Auth — quarantined. Must not guard anonymous Visitor bottle flows.
 func Auth() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		header := c.Get("Authorization")
@@ -60,7 +60,6 @@ func Auth() fiber.Handler {
 			return fiber.NewError(fiber.StatusUnauthorized, "invalid token claims")
 		}
 
-		// JWT numbers are deserialized as float64, so we need to convert it to int32
 		userIDFloat, ok := claims["user_id"].(float64)
 		if !ok {
 			return fiber.NewError(fiber.StatusUnauthorized, "invalid user_id in token")
@@ -72,7 +71,7 @@ func Auth() fiber.Handler {
 	}
 }
 
-// This function extracts the authenticated user ID from the request context, which was set by the Auth middleware. It returns the user ID and a boolean indicating whether the user is authenticated.
+// UserIDFromCtx reads quarantined auth locals; product handlers must not depend on this.
 func UserIDFromCtx(c fiber.Ctx) (int32, bool) {
 	id, ok := c.Locals(ctxUserIDKey).(int32)
 	return id, ok

@@ -2,7 +2,6 @@ package api
 
 import (
 	"strings"
-	"time"
 
 	"github.com/Polqt/ocealis/api/handler"
 	"github.com/Polqt/ocealis/api/middleware"
@@ -14,9 +13,9 @@ import (
 type Handlers struct {
 	Health    *handler.HealthHandler
 	Bottle    *handler.BottleHandler
-	User      *handler.UserHandler
 	Event     *handler.EventHandler
 	Discovery *handler.DiscoveryHandler
+	// User JWT create/login is not product v1 — do not wire here (PRD US28).
 }
 
 // RegisterRoutes wires all HTTP and WebSocket routes onto app.
@@ -41,21 +40,16 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 
 	v1 := app.Group("/api/v1")
 
-	// User routes
-	users := v1.Group("/users")
-	users.Post("/", middleware.StrictRateLimit(), h.User.CreateUser)
-	users.Get("/profile", middleware.Auth(), h.User.GetUser)
+	// Anonymous Visitor bottle flows — no JWT (CONTEXT.md / PRD).
+	bottles := v1.Group("/bottles")
+	bottles.Post("/", middleware.StrictRateLimit(), h.Bottle.CreateBottle)
+	bottles.Get("/:id", middleware.RateLimit(), h.Bottle.GetBottle)
+	bottles.Get("/:id/journey", middleware.RateLimit(), h.Bottle.GetJourney)
+	bottles.Get("/:id/events", middleware.RateLimit(), h.Event.GetBottleEvents)
+	bottles.Post("/:id/discover", middleware.StrictRateLimit(), h.Bottle.DiscoverBottle)
+	bottles.Post("/:id/release", middleware.StrictRateLimit(), h.Bottle.ReleaseBottle)
 
-	// Bottle routes
-	bottles := v1.Group("/bottles", middleware.Auth())
-	bottles.Post("/", middleware.UserRateLimit(5, time.Hour), h.Bottle.CreateBottle)
-	bottles.Get("/:id", middleware.UserRateLimit(120, time.Minute), h.Bottle.GetBottle)
-	bottles.Get("/:id/journey", middleware.UserRateLimit(120, time.Minute), h.Bottle.GetJourney)
-	bottles.Get("/:id/events", middleware.UserRateLimit(120, time.Minute), h.Event.GetBottleEvents)
-	bottles.Post("/:id/discover", middleware.UserRateLimit(20, time.Hour), h.Bottle.DiscoverBottle)
-	bottles.Post("/:id/release", middleware.UserRateLimit(5, time.Hour), h.Bottle.ReleaseBottle)
-
-	// Discovery routes
-	discovery := v1.Group("/discovery", middleware.Auth())
-	discovery.Get("/", middleware.UserRateLimit(30, time.Minute), h.Discovery.FindNearby)
+	discovery := v1.Group("/discovery")
+	discovery.Get("/", middleware.RateLimit(), h.Discovery.FindNearby)
+	discovery.Get("/map", middleware.RateLimit(), h.Discovery.BrowseMap)
 }

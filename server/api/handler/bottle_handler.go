@@ -3,20 +3,21 @@ package handler
 import (
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/Polqt/ocealis/api/middleware"
+	"github.com/Polqt/ocealis/internal/cast"
 	"github.com/Polqt/ocealis/internal/service"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 )
 
 type createBottleRequest struct {
-	MessageText string     `json:"message_text" validate:"required,min=1,max=1000"`
-	BottleStyle int32      `json:"bottle_style"  validate:"min=0,max=9"`
-	StartLat    *float64   `json:"start_lat"     validate:"required,min=-90,max=90"`
-	StartLng    *float64   `json:"start_lng"     validate:"required,min=-180,max=180"`
-	ReleaseAt   *time.Time `json:"release_at"`
+	Nickname       string   `json:"nickname" validate:"required,min=1,max=24"`
+	MessageText    string   `json:"message_text" validate:"required,min=1,max=500"`
+	BottleStyle    int32    `json:"bottle_style" validate:"min=0,max=9"`
+	StartLat       *float64 `json:"start_lat" validate:"omitempty,min=-90,max=90"`
+	StartLng       *float64 `json:"start_lng" validate:"omitempty,min=-180,max=180"`
+	TurnstileToken string   `json:"turnstile_token" validate:"required"`
 }
 
 type DiscoverBottleRequest struct {
@@ -31,23 +32,23 @@ type releaseBottleRequest struct {
 
 type BottleHandler struct {
 	svc      service.BottleService
+	turnstile middleware.TurnstileVerifier
 	validate *validator.Validate
 }
 
-func NewBottleHandler(svc service.BottleService) *BottleHandler {
+func NewBottleHandler(svc service.BottleService, turnstile middleware.TurnstileVerifier) *BottleHandler {
+	if turnstile == nil {
+		turnstile = middleware.AcceptTurnstile{}
+	}
 	return &BottleHandler{
-		svc:      svc,
-		validate: validator.New(),
+		svc:       svc,
+		turnstile: turnstile,
+		validate:  validator.New(),
 	}
 }
 
-// Create a new bottle
+// CreateBottle is Cast — anonymous Visitor, no JWT, no caster tracking.
 func (h *BottleHandler) CreateBottle(c fiber.Ctx) error {
-	userID, ok := middleware.UserIDFromCtx(c)
-	if !ok {
-		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
-	}
-
 	var req createBottleRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
@@ -57,16 +58,33 @@ func (h *BottleHandler) CreateBottle(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
 
+	if err := h.turnstile.Verify(c.Context(), req.TurnstileToken, c.IP()); err != nil {
+		return fiber.NewError(fiber.StatusForbidden, "cast blocked")
+	}
+
+	// one of lat/lng missing → treat as no geo (basin fallback in service)
+	var lat, lng *float64
+	if req.StartLat != nil && req.StartLng != nil {
+		lat, lng = req.StartLat, req.StartLng
+	}
+
 	bottle, err := h.svc.CreateBottle(c.Context(), service.CreateBottleInput{
-		SenderID:    userID,
+		Nickname:    req.Nickname,
 		MessageText: req.MessageText,
 		BottleStyle: req.BottleStyle,
-		StartLat:    *req.StartLat,
-		StartLng:    *req.StartLng,
-		ReleaseAt:   req.ReleaseAt,
+		StartLat:    lat,
+		StartLng:    lng,
 	})
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "could not release bottle")
+		switch {
+		case errors.Is(err, cast.ErrNicknameRequired),
+			errors.Is(err, cast.ErrNicknameTooLong),
+			errors.Is(err, cast.ErrMessageRequired),
+			errors.Is(err, cast.ErrMessageTooLong):
+			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "could not cast bottle")
+		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(bottle)
@@ -100,12 +118,8 @@ func (h *BottleHandler) GetJourney(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(journey)
 }
 
+// DiscoverBottle is legacy claim path — Open must not claim (issue 03). No JWT.
 func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
-	userID, ok := middleware.UserIDFromCtx(c)
-	if !ok {
-		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
-	}
-
 	id, err := parseID(c, "id")
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid bottle id")
@@ -121,7 +135,7 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 
 	journey, err := h.svc.DiscoverBottle(c.Context(), service.DiscoverBottleInput{
 		BottleID:   id,
-		DiscoverID: userID,
+		DiscoverID: 0, // anonymous Visitor
 		UserLat:    req.UserLat,
 		UserLng:    req.UserLng,
 	})
@@ -134,20 +148,15 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 		case errors.Is(err, service.ErrSenderCannotDiscover):
 			return fiber.NewError(fiber.StatusForbidden, err.Error())
 		default:
-			return fiber.NewError(fiber.StatusInternalServerError, "could not discover bottle")
+			return fiber.NewError(fiber.StatusInternalServerError, "could not open bottle")
 		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(journey)
-
 }
 
+// ReleaseBottle is Re-release — anonymous, Nickname in later issue.
 func (h *BottleHandler) ReleaseBottle(c fiber.Ctx) error {
-	userID, ok := middleware.UserIDFromCtx(c)
-	if !ok {
-		return fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
-	}
-
 	id, err := parseID(c, "id")
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid bottle id")
@@ -161,9 +170,9 @@ func (h *BottleHandler) ReleaseBottle(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
 
-	bottle, err := h.svc.ReleaseBottle(c.Context(), id, userID, req.Lat, req.Lng)
+	bottle, err := h.svc.ReleaseBottle(c.Context(), id, 0, req.Lat, req.Lng)
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "could not release bottle")
+		return fiber.NewError(fiber.StatusInternalServerError, "could not re-release bottle")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(bottle)
