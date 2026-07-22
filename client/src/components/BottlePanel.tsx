@@ -1,10 +1,10 @@
-import { For, Show, createEffect, createSignal } from "solid-js";
-import { discoverBottle, getJourney, releaseBottle } from "~/lib/api";
-import { getStoredUser } from "~/lib/api";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { discoverBottle, getJourney, releaseBottle, getStoredUser } from "~/lib/api";
 import type { BottleEvent, Journey } from "~/lib/types";
 
 type Props = {
   bottleId: () => number | null;
+  reloadToken: () => number;
   onClose: () => void;
   onJourney: (points: { lat: number; lng: number }[]) => void;
   onReleased: (id: number) => void;
@@ -22,6 +22,12 @@ function chapterCopy(event: BottleEvent) {
   return CHAPTER[event.event_type] ?? { title: event.event_type, line: "A quiet moment on the journey." };
 }
 
+function journeyPointsFrom(j: Journey) {
+  const points = [...j.events].reverse().map(e => ({ lat: e.lat, lng: e.lng }));
+  points.push({ lat: j.bottle.current_lat, lng: j.bottle.current_lng });
+  return points;
+}
+
 export default function BottlePanel(props: Props) {
   const [journey, setJourney] = createSignal<Journey | null>(null);
   const [busy, setBusy] = createSignal(false);
@@ -29,27 +35,30 @@ export default function BottlePanel(props: Props) {
 
   createEffect(() => {
     const id = props.bottleId();
+    props.reloadToken(); // remote discover/refresh
     setJourney(null);
     setError("");
     if (!id) {
       props.onJourney([]);
       return;
     }
+
+    let cancelled = false;
     void (async () => {
       try {
         const j = await getJourney(id);
+        if (cancelled || props.bottleId() !== id) return;
         setJourney(j);
-        const points = [...j.events]
-          .reverse()
-          .map(e => ({ lat: e.lat, lng: e.lng }));
-        if (j.bottle) {
-          points.push({ lat: j.bottle.current_lat, lng: j.bottle.current_lng });
-        }
-        props.onJourney(points);
+        props.onJourney(journeyPointsFrom(j));
       } catch (err) {
+        if (cancelled || props.bottleId() !== id) return;
         setError(err instanceof Error ? err.message : "Could not load journey");
       }
     })();
+
+    onCleanup(() => {
+      cancelled = true;
+    });
   });
 
   const isOwn = () => {
@@ -67,11 +76,7 @@ export default function BottlePanel(props: Props) {
       const next = await discoverBottle(j.bottle.id, j.bottle.current_lat, j.bottle.current_lng);
       setJourney(next);
       props.onDiscovered(j.bottle.id);
-      props.onJourney(
-        [...next.events].reverse().map(e => ({ lat: e.lat, lng: e.lng })).concat([
-          { lat: next.bottle.current_lat, lng: next.bottle.current_lng }
-        ])
-      );
+      props.onJourney(journeyPointsFrom(next));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not discover");
     } finally {

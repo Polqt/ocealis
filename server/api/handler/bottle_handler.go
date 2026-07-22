@@ -131,6 +131,8 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusNotFound, err.Error())
 		case errors.Is(err, service.ErrAlreadyDiscovered):
 			return fiber.NewError(fiber.StatusConflict, err.Error())
+		case errors.Is(err, service.ErrNotDiscoverable):
+			return fiber.NewError(fiber.StatusConflict, err.Error())
 		case errors.Is(err, service.ErrSenderCannotDiscover):
 			return fiber.NewError(fiber.StatusForbidden, err.Error())
 		default:

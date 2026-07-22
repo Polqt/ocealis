@@ -20,6 +20,7 @@ var (
 	ErrBottleNotFound       = errors.New("bottle not found")
 	ErrAlreadyDiscovered    = errors.New("bottle already discovered")
 	ErrSenderCannotDiscover = errors.New("sender cannot discover their own bottle")
+	ErrNotDiscoverable      = errors.New("bottle is not discoverable")
 )
 
 type CreateBottleInput struct {
@@ -173,6 +174,11 @@ func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottle
 
 	if bottle.Status == domain.BottleStatusDiscovered {
 		return nil, ErrAlreadyDiscovered
+	}
+
+	// Only public ocean bottles can be discovered — blocks scheduled/unreleased griefing.
+	if bottle.Status != domain.BottleStatusDrifting || !bottle.IsReleased {
+		return nil, ErrNotDiscoverable
 	}
 
 	err = db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {

@@ -12,6 +12,7 @@ export default function OceanHome() {
   const [live, setLive] = createSignal(false);
   const [bottles, setBottles] = createSignal<Bottle[]>([]);
   const [selectedId, setSelectedId] = createSignal<number | null>(null);
+  const [panelReload, setPanelReload] = createSignal(0);
   const [castOpen, setCastOpen] = createSignal(false);
   const [castPulse, setCastPulse] = createSignal(0);
   const [journeyPoints, setJourneyPoints] = createSignal<{ lat: number; lng: number }[]>([]);
@@ -33,7 +34,6 @@ export default function OceanHome() {
         await ensureAnonSession();
         const ocean = await listOceanBottles(120);
         setBottles(ocean.data ?? []);
-        setReady(true);
         stopWs = connectOceanWs({
           onStatus: setLive,
           onDrift: payload => {
@@ -54,7 +54,7 @@ export default function OceanHome() {
           onDiscovered: id => {
             setBottles(prev => prev.filter(b => b.id !== id));
             if (selectedId() === id) {
-              /* keep panel; journey refresh handles status */
+              setPanelReload(v => v + 1);
             }
           },
           onReleased: id => {
@@ -65,6 +65,8 @@ export default function OceanHome() {
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not open the ocean");
+      } finally {
+        setReady(true);
       }
     })();
 
@@ -117,6 +119,7 @@ export default function OceanHome() {
 
       <BottlePanel
         bottleId={selectedId}
+        reloadToken={panelReload}
         onClose={() => {
           setSelectedId(null);
           setJourneyPoints([]);

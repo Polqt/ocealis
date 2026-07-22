@@ -23,7 +23,11 @@ RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, curre
 
 -- name: UpdateBottlePosition :one
 UPDATE bottles
-SET current_lat = $2, current_lng = $3, hops = hops + 1, status = $4
+SET current_lat = $2,
+    current_lng = $3,
+    hops = hops + 1,
+    status = $4,
+    is_release = CASE WHEN $4 = 'drifting' THEN TRUE ELSE is_release END
 WHERE id = $1
 RETURNING id, sender_id, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at;
 
