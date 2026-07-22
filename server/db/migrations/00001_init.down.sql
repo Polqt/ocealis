@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS bottle_events;
+DROP TABLE IF EXISTS bottles;
+DROP TABLE IF EXISTS users;
