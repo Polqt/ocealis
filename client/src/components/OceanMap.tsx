@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { browseMap, getJourney, openBottle, type MapBrowseResult } from "~/lib/api";
+import { browseMap, getJourney, openBottle, stampBottle, type MapBrowseResult } from "~/lib/api";
 import type { Bottle, BottleEvent } from "~/lib/types";
 
 const HEAT_SRC = "ocean-heat";
@@ -15,6 +15,11 @@ export default function OceanMap() {
   let el!: HTMLDivElement;
   const [opened, setOpened] = createSignal<Opened | null>(null);
   const [openErr, setOpenErr] = createSignal("");
+  const [sealIcon, setSealIcon] = createSignal("");
+  const [stampNote, setStampNote] = createSignal("");
+  const [stampErr, setStampErr] = createSignal("");
+  const [stampDone, setStampDone] = createSignal(false);
+  const [stampBusy, setStampBusy] = createSignal(false);
 
   onMount(() => {
     const map = new maplibregl.Map({
@@ -91,12 +96,64 @@ export default function OceanMap() {
 
   async function openCork(id: number) {
     setOpenErr("");
+    resetStamp();
     try {
       const [bottle, journey] = await Promise.all([openBottle(id), getJourney(id)]);
       setOpened({ bottle, events: journey.events ?? [] });
     } catch (err) {
       setOpened(null);
       setOpenErr(err instanceof Error ? err.message : "could not Open");
+    }
+  }
+
+  function resetStamp() {
+    setSealIcon("");
+    setStampNote("");
+    setStampErr("");
+    setStampDone(false);
+    setStampBusy(false);
+  }
+
+  function closeCork() {
+    setOpened(null);
+    resetStamp();
+  }
+
+  async function submitStamp(event: SubmitEvent) {
+    event.preventDefault();
+    const current = opened();
+    if (!current || stampBusy()) return;
+
+    const note = stampNote().trim();
+    const seal = sealIcon();
+    if (!seal && !note) {
+      setStampErr("Choose a seal or leave a note.");
+      return;
+    }
+
+    setStampBusy(true);
+    setStampErr("");
+    setStampDone(false);
+    try {
+      const turnstile =
+        (window as unknown as { turnstileToken?: string }).turnstileToken ?? "dev";
+      const stamped = await stampBottle(current.bottle.id, {
+        seal_icon: seal || undefined,
+        note: note || undefined,
+        turnstile_token: turnstile,
+      });
+      setOpened(previous =>
+        previous?.bottle.id === current.bottle.id
+          ? { ...previous, events: [...previous.events, stamped] }
+          : previous,
+      );
+      setSealIcon("");
+      setStampNote("");
+      setStampDone(true);
+    } catch (err) {
+      setStampErr(err instanceof Error ? err.message : "could not Stamp");
+    } finally {
+      setStampBusy(false);
     }
   }
 
@@ -111,7 +168,7 @@ export default function OceanMap() {
       <Show when={opened()}>
         {o => (
           <aside class="cork-open" aria-label="Opened Bottle">
-            <button type="button" class="cork-open__close" onClick={() => setOpened(null)}>
+            <button type="button" class="cork-open__close" onClick={closeCork}>
               Close
             </button>
             <p class="cork-open__nick">{o().bottle.nickname}</p>
@@ -122,9 +179,48 @@ export default function OceanMap() {
               fallback={<p class="cork-open__empty">No Journey events yet.</p>}
             >
               <ol class="cork-open__events">
-                <For each={o().events}>{ev => <li>{journeyLabel(ev.event_type)}</li>}</For>
+                <For each={o().events}>{ev => <li>{journeyLabel(ev)}</li>}</For>
               </ol>
             </Show>
+            <form class="stamp-form" onSubmit={submitStamp}>
+              <h2>Stamp this Journey</h2>
+              <label>
+                Seal
+                <select value={sealIcon()} onInput={event => setSealIcon(event.currentTarget.value)}>
+                  <option value="">No seal</option>
+                  <option value="⚓">⚓ Anchor</option>
+                  <option value="🌊">🌊 Wave</option>
+                  <option value="🐚">🐚 Shell</option>
+                  <option value="⭐">⭐ Star</option>
+                </select>
+              </label>
+              <label>
+                Note
+                <textarea
+                  value={stampNote()}
+                  onInput={event => setStampNote(event.currentTarget.value)}
+                  maxLength={80}
+                  rows={2}
+                  placeholder="A few words for the next Visitor"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={stampBusy() || (!sealIcon() && !stampNote().trim())}
+              >
+                {stampBusy() ? "Stamping…" : "Stamp"}
+              </button>
+              <Show when={stampErr()}>
+                <p class="stamp-form__error" role="alert">
+                  {stampErr()}
+                </p>
+              </Show>
+              <Show when={stampDone()}>
+                <p class="stamp-form__done" role="status">
+                  Journey stamped.
+                </p>
+              </Show>
+            </form>
           </aside>
         )}
       </Show>
@@ -132,20 +228,22 @@ export default function OceanMap() {
   );
 }
 
-function journeyLabel(t: string): string {
-  switch (t) {
+function journeyLabel(event: BottleEvent): string {
+  switch (event.event_type) {
     case "released":
       return "Cast";
     case "drift":
       return "Drift";
     case "stamp":
-      return "Stamp";
+      return ["Stamp", event.seal_icon, event.note ? `— ${event.note}` : ""]
+        .filter(Boolean)
+        .join(" ");
     case "re_released":
       return "Re-release";
     case "sink":
       return "Sink";
     default:
-      return t;
+      return event.event_type;
   }
 }
 

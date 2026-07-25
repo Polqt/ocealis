@@ -30,5 +30,7 @@ CREATE TABLE bottle_events (
     event_type TEXT NOT NULL,
     lat        DOUBLE PRECISION,
     lng        DOUBLE PRECISION,
+    seal_icon  TEXT NOT NULL DEFAULT '',
+    note       TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

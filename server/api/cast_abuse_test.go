@@ -33,8 +33,10 @@ func (c captchaStub) Verify(ctx context.Context, token, ip string) error {
 }
 
 type castRecordingSvc struct {
-	last service.CreateBottleInput
-	got  bool
+	last      service.CreateBottleInput
+	got       bool
+	stampLast service.StampBottleInput
+	stampGot  bool
 }
 
 func (f *castRecordingSvc) CreateBottle(ctx context.Context, in service.CreateBottleInput) (*domain.Bottle, error) {
@@ -54,6 +56,18 @@ func (f *castRecordingSvc) GetBottle(context.Context, int32) (*domain.Bottle, er
 }
 func (f *castRecordingSvc) GetJourney(context.Context, int32) (*domain.Journey, error) {
 	return nil, nil
+}
+func (f *castRecordingSvc) StampBottle(_ context.Context, in service.StampBottleInput) (*domain.BottleEvent, error) {
+	f.stampGot = true
+	f.stampLast = in
+	return &domain.BottleEvent{
+		ID:        2,
+		BottleID:  in.BottleID,
+		EventType: domain.EventTypeStamp,
+		SealIcon:  in.SealIcon,
+		Note:      in.Note,
+		CreatedAt: time.Now(),
+	}, nil
 }
 func (f *castRecordingSvc) DiscoverBottle(context.Context, service.DiscoverBottleInput) (*domain.Journey, error) {
 	return nil, nil
@@ -89,11 +103,11 @@ func TestCastRejectsInvalidTurnstile(t *testing.T) {
 	app := castApp(t, captchaStub{ok: false}, svc)
 
 	body, _ := json.Marshal(map[string]any{
-		"nickname":         "sailor",
-		"message_text":     "hello",
-		"turnstile_token":  "bad",
-		"start_lat":        30.0,
-		"start_lng":        -140.0,
+		"nickname":        "sailor",
+		"message_text":    "hello",
+		"turnstile_token": "bad",
+		"start_lat":       30.0,
+		"start_lng":       -140.0,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/bottles", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
