@@ -7,6 +7,12 @@ export type CastBottleRequest = {
   bottle_style?: number;
 };
 
+export type StampBottleRequest = {
+  seal_icon?: string;
+  note?: string;
+  turnstile_token: string;
+};
+
 export type Bottle = {
   id: number;
   nickname: string;
@@ -23,6 +29,8 @@ export type BottleEvent = {
   event_type: string;
   lat: number;
   lng: number;
+  seal_icon?: string;
+  note?: string;
   created_at: string;
 };
 
