@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { browseMap, getJourney, openBottle, type MapBrowseResult } from "~/lib/api";
+import { browseMap, getJourney, openBottle, stampBottle, type MapBrowseResult } from "~/lib/api";
 import type { Bottle, BottleEvent } from "~/lib/types";
 
 const HEAT_SRC = "ocean-heat";
@@ -15,6 +15,10 @@ export default function OceanMap() {
   let el!: HTMLDivElement;
   const [opened, setOpened] = createSignal<Opened | null>(null);
   const [openErr, setOpenErr] = createSignal("");
+  const [sealIcon, setSealIcon] = createSignal("");
+  const [stampNote, setStampNote] = createSignal("");
+  const [stamping, setStamping] = createSignal(false);
+  const [stampErr, setStampErr] = createSignal("");
 
   onMount(() => {
     const map = new maplibregl.Map({
@@ -91,12 +95,38 @@ export default function OceanMap() {
 
   async function openCork(id: number) {
     setOpenErr("");
+    setSealIcon("");
+    setStampNote("");
+    setStampErr("");
     try {
       const [bottle, journey] = await Promise.all([openBottle(id), getJourney(id)]);
       setOpened({ bottle, events: journey.events ?? [] });
     } catch (err) {
       setOpened(null);
       setOpenErr(err instanceof Error ? err.message : "could not Open");
+    }
+  }
+
+  async function addStamp(event: SubmitEvent) {
+    event.preventDefault();
+    const current = opened();
+    if (!current || (!sealIcon() && !stampNote().trim())) return;
+
+    setStamping(true);
+    setStampErr("");
+    try {
+      const journey = await stampBottle(current.bottle.id, {
+        seal_icon: sealIcon() || undefined,
+        note: stampNote().trim() || undefined,
+        turnstile_token: "dev",
+      });
+      setOpened({ bottle: journey.bottle, events: journey.events ?? [] });
+      setSealIcon("");
+      setStampNote("");
+    } catch (err) {
+      setStampErr(err instanceof Error ? err.message : "could not Stamp");
+    } finally {
+      setStamping(false);
     }
   }
 
@@ -122,9 +152,43 @@ export default function OceanMap() {
               fallback={<p class="cork-open__empty">No Journey events yet.</p>}
             >
               <ol class="cork-open__events">
-                <For each={o().events}>{ev => <li>{journeyLabel(ev.event_type)}</li>}</For>
+                <For each={o().events}>{ev => <li>{journeyLabel(ev)}</li>}</For>
               </ol>
             </Show>
+            <form class="cork-open__stamp" onSubmit={addStamp}>
+              <h2>Stamp this Bottle</h2>
+              <label>
+                Seal
+                <select value={sealIcon()} onInput={e => setSealIcon(e.currentTarget.value)}>
+                  <option value="">No seal</option>
+                  <option value="⚓">⚓ Anchor</option>
+                  <option value="🐚">🐚 Shell</option>
+                  <option value="🌊">🌊 Wave</option>
+                  <option value="⭐">⭐ Star</option>
+                </select>
+              </label>
+              <label>
+                Note <span>{stampNote().length}/80</span>
+                <textarea
+                  rows={2}
+                  maxLength={80}
+                  value={stampNote()}
+                  onInput={e => setStampNote(e.currentTarget.value)}
+                  placeholder="Optional passport note"
+                />
+              </label>
+              <Show when={stampErr()}>
+                <p class="cork-open__stamp-error" role="alert">
+                  {stampErr()}
+                </p>
+              </Show>
+              <button
+                type="submit"
+                disabled={stamping() || (!sealIcon() && !stampNote().trim())}
+              >
+                {stamping() ? "Stamping…" : "Add Stamp"}
+              </button>
+            </form>
           </aside>
         )}
       </Show>
@@ -132,20 +196,20 @@ export default function OceanMap() {
   );
 }
 
-function journeyLabel(t: string): string {
-  switch (t) {
+function journeyLabel(event: BottleEvent): string {
+  switch (event.event_type) {
     case "released":
       return "Cast";
     case "drift":
       return "Drift";
     case "stamp":
-      return "Stamp";
+      return `Stamp${event.seal_icon ? ` ${event.seal_icon}` : ""}${event.note ? ` — ${event.note}` : ""}`;
     case "re_released":
       return "Re-release";
     case "sink":
       return "Sink";
     default:
-      return t;
+      return event.event_type;
   }
 }
 
