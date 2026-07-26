@@ -1,6 +1,6 @@
 # Stamp
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -8,11 +8,11 @@ Visitor Stamps an opened Bottle: seal icon and/or short note (≤80). One Journe
 
 ## Acceptance criteria
 
-- [ ] Stamp accepts seal and/or note ≤80; rejects over-limit
-- [ ] Journey gains a stamp event; Bottle remains discoverable
-- [ ] Stamp protected by Turnstile + IP rate limit
-- [ ] UI: Stamp from Open view
-- [ ] Tests: journey append + abuse rejection + limit
+- [x] Stamp accepts seal and/or note ≤80; rejects over-limit
+- [x] Journey gains a stamp event; Bottle remains discoverable
+- [x] Stamp protected by Turnstile + IP rate limit
+- [x] UI: Stamp from Open view
+- [x] Tests: journey append + abuse rejection + limit
 
 ## Blocked by
 
@@ -25,3 +25,9 @@ Visitor Stamps an opened Bottle: seal icon and/or short note (≤80). One Journe
 ## Comments
 
 Published from `/to-issues` against `docs/prd-v1.md`.
+
+2026-07-26: Added `POST /api/v1/bottles/:id/stamp` with sanitized seal/note
+validation, Turnstile, strict IP rate limiting, and durable Journey payloads.
+Stamp does not move or claim the Bottle. Demo: Open a Cork, choose a seal and/or
+write an ≤80-character note, then Add Stamp and see it appear in the Journey.
+Verify with `go test ./...` in `server/` and `pnpm build` in `client/`.
