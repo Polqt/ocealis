@@ -46,6 +46,7 @@ func RegisterRoutes(app *fiber.App, h Handlers, hub *ws.Hub, log *zap.Logger) {
 	bottles.Get("/:id", middleware.RateLimit(), h.Bottle.GetBottle)
 	bottles.Get("/:id/journey", middleware.RateLimit(), h.Bottle.GetJourney)
 	bottles.Get("/:id/events", middleware.RateLimit(), h.Event.GetBottleEvents)
+	bottles.Post("/:id/stamp", middleware.StrictRateLimit(), h.Bottle.StampBottle)
 	bottles.Post("/:id/discover", middleware.StrictRateLimit(), h.Bottle.DiscoverBottle)
 	bottles.Post("/:id/release", middleware.StrictRateLimit(), h.Bottle.ReleaseBottle)
 
