@@ -12,8 +12,9 @@ import (
 )
 
 type openBottleRepo struct {
-	bottle       *domain.Bottle
-	statusWrites int
+	bottle         *domain.Bottle
+	statusWrites   int
+	positionWrites int
 }
 
 func (r *openBottleRepo) Create(context.Context, repository.CreateBottleParams) (*domain.Bottle, error) {
@@ -27,7 +28,8 @@ func (r *openBottleRepo) UpdateStatus(context.Context, int32, domain.BottleStatu
 	return r.bottle, nil
 }
 func (r *openBottleRepo) UpdatePosition(context.Context, int32, float64, float64, domain.BottleStatus) (*domain.Bottle, error) {
-	return nil, nil
+	r.positionWrites++
+	return r.bottle, nil
 }
 func (r *openBottleRepo) ListActive(context.Context) ([]domain.Bottle, error) { return nil, nil }
 func (r *openBottleRepo) ReleaseScheduled(context.Context) ([]domain.Bottle, error) {

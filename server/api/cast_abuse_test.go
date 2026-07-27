@@ -55,6 +55,9 @@ func (f *castRecordingSvc) GetBottle(context.Context, int32) (*domain.Bottle, er
 func (f *castRecordingSvc) GetJourney(context.Context, int32) (*domain.Journey, error) {
 	return nil, nil
 }
+func (f *castRecordingSvc) StampBottle(context.Context, service.StampBottleInput) (*domain.Journey, error) {
+	return nil, nil
+}
 func (f *castRecordingSvc) DiscoverBottle(context.Context, service.DiscoverBottleInput) (*domain.Journey, error) {
 	return nil, nil
 }
@@ -89,11 +92,11 @@ func TestCastRejectsInvalidTurnstile(t *testing.T) {
 	app := castApp(t, captchaStub{ok: false}, svc)
 
 	body, _ := json.Marshal(map[string]any{
-		"nickname":         "sailor",
-		"message_text":     "hello",
-		"turnstile_token":  "bad",
-		"start_lat":        30.0,
-		"start_lng":        -140.0,
+		"nickname":        "sailor",
+		"message_text":    "hello",
+		"turnstile_token": "bad",
+		"start_lat":       30.0,
+		"start_lng":       -140.0,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/bottles", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
