@@ -115,10 +115,12 @@ export default function OceanMap() {
     setStamping(true);
     setStampErr("");
     try {
+      const turnstile =
+        (window as unknown as { turnstileToken?: string }).turnstileToken ?? "dev";
       const journey = await stampBottle(current.bottle.id, {
         seal_icon: sealIcon() || undefined,
         note: stampNote().trim() || undefined,
-        turnstile_token: "dev",
+        turnstile_token: turnstile,
       });
       setOpened({ bottle: journey.bottle, events: journey.events ?? [] });
       setSealIcon("");
