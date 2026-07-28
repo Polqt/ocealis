@@ -8,9 +8,9 @@ type EventType string
 const (
 	// EventTypeCast — Visitor Cast a Bottle into the Ocean.
 	// Wire value still "released" until event_type migration (deferred).
-	EventTypeCast EventType = "released"
+	EventTypeCast  EventType = "released"
 	EventTypeDrift EventType = "drift"
-	// EventTypeStamp — passport seal/note on Journey (stub until issue 04).
+	// EventTypeStamp — passport seal/note on Journey.
 	EventTypeStamp EventType = "stamp"
 	// EventTypeReReleased — finder Re-release from their Shoreline.
 	EventTypeReReleased EventType = "re_released"
@@ -33,5 +33,7 @@ type BottleEvent struct {
 	EventType EventType `json:"event_type"`
 	Lat       float64   `json:"lat"`
 	Lng       float64   `json:"lng"`
+	SealIcon  string    `json:"seal_icon,omitempty"`
+	Note      string    `json:"note,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
