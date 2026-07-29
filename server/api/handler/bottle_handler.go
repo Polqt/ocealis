@@ -7,6 +7,7 @@ import (
 	"github.com/Polqt/ocealis/api/middleware"
 	"github.com/Polqt/ocealis/internal/cast"
 	"github.com/Polqt/ocealis/internal/service"
+	"github.com/Polqt/ocealis/internal/stamp"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 )
@@ -30,10 +31,16 @@ type releaseBottleRequest struct {
 	Lng float64 `json:"lng" validate:"required,min=-180,max=180"`
 }
 
+type stampBottleRequest struct {
+	SealIcon       string `json:"seal_icon"`
+	Note           string `json:"note" validate:"omitempty,max=80"`
+	TurnstileToken string `json:"turnstile_token" validate:"required"`
+}
+
 type BottleHandler struct {
-	svc      service.BottleService
+	svc       service.BottleService
 	turnstile middleware.TurnstileVerifier
-	validate *validator.Validate
+	validate  *validator.Validate
 }
 
 func NewBottleHandler(svc service.BottleService, turnstile middleware.TurnstileVerifier) *BottleHandler {
@@ -113,6 +120,43 @@ func (h *BottleHandler) GetJourney(c fiber.Ctx) error {
 	journey, err := h.svc.GetJourney(c.Context(), id)
 	if err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "journey not found")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(journey)
+}
+
+// StampBottle appends one passport-style mark without moving or claiming the Bottle.
+func (h *BottleHandler) StampBottle(c fiber.Ctx) error {
+	id, err := parseID(c, "id")
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid bottle id")
+	}
+
+	var req stampBottleRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+	if err := h.turnstile.Verify(c.Context(), req.TurnstileToken, c.IP()); err != nil {
+		return fiber.NewError(fiber.StatusForbidden, "stamp blocked")
+	}
+
+	journey, err := h.svc.StampBottle(c.Context(), service.StampBottleInput{
+		BottleID: id,
+		SealIcon: req.SealIcon,
+		Note:     req.Note,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, stamp.ErrStampRequired), errors.Is(err, stamp.ErrNoteTooLong):
+			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+		case errors.Is(err, service.ErrBottleNotFound):
+			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "could not stamp bottle")
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(journey)
