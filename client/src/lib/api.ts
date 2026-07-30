@@ -1,9 +1,11 @@
 import type {
   Bottle,
+  BottleEvent,
   CastBottleRequest,
   Journey,
   MapBrowseQuery,
   MapBrowseResult,
+  StampBottleRequest,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
@@ -54,6 +56,19 @@ export async function getJourney(id: number): Promise<Journey> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error ?? `journey failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function stampBottle(id: number, body: StampBottleRequest): Promise<BottleEvent> {
+  const res = await fetch(`${API_BASE}/api/v1/bottles/${id}/stamp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error ?? `stamp failed (${res.status})`);
   }
   return res.json();
 }

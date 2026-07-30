@@ -14,6 +14,8 @@ type CreateEventParams struct {
 	EventType domain.EventType
 	Lat       float64
 	Lng       float64
+	SealIcon  string
+	Note      string
 }
 
 type GetEventParams struct {
@@ -47,6 +49,8 @@ func (r *postgresEventRepo) Create(ctx context.Context, params CreateEventParams
 		EventType: string(params.EventType),
 		Lat:       pgtype.Float8{Float64: params.Lat, Valid: true},
 		Lng:       pgtype.Float8{Float64: params.Lng, Valid: true},
+		SealIcon:  params.SealIcon,
+		Note:      params.Note,
 	})
 	if err != nil {
 		return nil, err
@@ -111,6 +115,8 @@ func mapEvent(row ocealis.BottleEvent) *domain.BottleEvent {
 	e := &domain.BottleEvent{
 		ID:        row.ID,
 		EventType: domain.EventType(row.EventType),
+		SealIcon:  row.SealIcon,
+		Note:      row.Note,
 	}
 
 	if row.BottleID.Valid {

@@ -13,6 +13,7 @@ import (
 	"github.com/Polqt/ocealis/internal/cast"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
+	"github.com/Polqt/ocealis/internal/stamp"
 	"github.com/Polqt/ocealis/ws"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,10 +41,17 @@ type DiscoverBottleInput struct {
 	UserLng    float64
 }
 
+type StampBottleInput struct {
+	BottleID int32
+	SealIcon string
+	Note     string
+}
+
 type BottleService interface {
 	CreateBottle(ctx context.Context, input CreateBottleInput) (*domain.Bottle, error)
 	GetBottle(ctx context.Context, id int32) (*domain.Bottle, error)
 	GetJourney(ctx context.Context, bottleID int32) (*domain.Journey, error)
+	StampBottle(ctx context.Context, input StampBottleInput) (*domain.BottleEvent, error)
 	DiscoverBottle(ctx context.Context, input DiscoverBottleInput) (*domain.Journey, error)
 	ReleaseBottle(ctx context.Context, bottleID, userID int32, lat, lng float64) (*domain.Bottle, error)
 }
@@ -144,6 +152,32 @@ func (s *bottleService) GetJourney(ctx context.Context, bottleID int32) (*domain
 	})
 
 	return &domain.Journey{Bottle: bottle, Events: events}, nil
+}
+
+func (s *bottleService) StampBottle(ctx context.Context, input StampBottleInput) (*domain.BottleEvent, error) {
+	details, err := stamp.Prepare(input.SealIcon, input.Note)
+	if err != nil {
+		return nil, err
+	}
+
+	bottle, err := s.bottles.GetByID(ctx, input.BottleID)
+	if err != nil {
+		return nil, ErrBottleNotFound
+	}
+
+	event, err := s.events.Create(ctx, repository.CreateEventParams{
+		BottleID:  bottle.ID,
+		EventType: domain.EventTypeStamp,
+		Lat:       bottle.CurrentLat,
+		Lng:       bottle.CurrentLng,
+		SealIcon:  details.SealIcon,
+		Note:      details.Note,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create stamp event:%w", err)
+	}
+
+	return event, nil
 }
 
 func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottleInput) (*domain.Journey, error) {
