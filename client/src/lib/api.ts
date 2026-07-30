@@ -1,5 +1,6 @@
 import type {
   Bottle,
+  BottleEvent,
   CastBottleRequest,
   Journey,
   MapBrowseQuery,
@@ -59,7 +60,7 @@ export async function getJourney(id: number): Promise<Journey> {
   return res.json();
 }
 
-export async function stampBottle(id: number, body: StampBottleRequest): Promise<Journey> {
+export async function stampBottle(id: number, body: StampBottleRequest): Promise<BottleEvent> {
   const res = await fetch(`${API_BASE}/api/v1/bottles/${id}/stamp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -67,7 +68,7 @@ export async function stampBottle(id: number, body: StampBottleRequest): Promise
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error ?? `Stamp failed (${res.status})`);
+    throw new Error(err.error ?? `stamp failed (${res.status})`);
   }
   return res.json();
 }

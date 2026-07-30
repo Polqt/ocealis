@@ -31,8 +31,8 @@ func (f *fakeBottleSvc) GetBottle(context.Context, int32) (*domain.Bottle, error
 func (f *fakeBottleSvc) GetJourney(context.Context, int32) (*domain.Journey, error) {
 	return &domain.Journey{Bottle: f.bottle, Events: nil}, nil
 }
-func (f *fakeBottleSvc) StampBottle(context.Context, service.StampBottleInput) (*domain.Journey, error) {
-	return &domain.Journey{Bottle: f.bottle, Events: nil}, nil
+func (f *fakeBottleSvc) StampBottle(context.Context, service.StampBottleInput) (*domain.BottleEvent, error) {
+	return nil, nil
 }
 func (f *fakeBottleSvc) DiscoverBottle(context.Context, service.DiscoverBottleInput) (*domain.Journey, error) {
 	return nil, nil

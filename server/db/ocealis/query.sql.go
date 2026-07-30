@@ -72,8 +72,8 @@ type CreateBottleEventParams struct {
 	EventType string
 	Lat       pgtype.Float8
 	Lng       pgtype.Float8
-	SealIcon  pgtype.Text
-	Note      pgtype.Text
+	SealIcon  string
+	Note      string
 }
 
 func (q *Queries) CreateBottleEvent(ctx context.Context, arg CreateBottleEventParams) (BottleEvent, error) {

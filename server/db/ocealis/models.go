@@ -31,8 +31,8 @@ type BottleEvent struct {
 	EventType string
 	Lat       pgtype.Float8
 	Lng       pgtype.Float8
-	SealIcon  pgtype.Text
-	Note      pgtype.Text
+	SealIcon  string
+	Note      string
 	CreatedAt pgtype.Timestamptz
 }
 

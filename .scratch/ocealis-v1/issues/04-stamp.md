@@ -26,8 +26,8 @@ Visitor Stamps an opened Bottle: seal icon and/or short note (≤80). One Journe
 
 Published from `/to-issues` against `docs/prd-v1.md`.
 
-2026-07-26: Added `POST /api/v1/bottles/:id/stamp` with sanitized seal/note
-validation, Turnstile, strict IP rate limiting, and durable Journey payloads.
-Stamp does not move or claim the Bottle. Demo: Open a Cork, choose a seal and/or
-write an ≤80-character note, then Add Stamp and see it appear in the Journey.
-Verify with `go test ./...` in `server/` and `pnpm build` in `client/`.
+2026-07-25: Added `POST /api/v1/bottles/:id/stamp`, durable seal/note Journey
+metadata, Turnstile + per-IP mutation limits, and a Stamp form in the Open
+panel. Demo: Open a Cork, choose a seal and/or write up to 80 characters, then
+Stamp; the new event appears in Journey while the Bottle remains in the Ocean.
+Verified with `go test ./...`, `go build ./...`, and `pnpm build`.

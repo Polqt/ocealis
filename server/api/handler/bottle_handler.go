@@ -33,8 +33,8 @@ type releaseBottleRequest struct {
 
 type stampBottleRequest struct {
 	SealIcon       string `json:"seal_icon"`
-	Note           string `json:"note" validate:"omitempty,max=80"`
-	TurnstileToken string `json:"turnstile_token" validate:"required"`
+	Note           string `json:"note"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 type BottleHandler struct {
@@ -125,7 +125,7 @@ func (h *BottleHandler) GetJourney(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(journey)
 }
 
-// StampBottle appends one passport-style mark without moving or claiming the Bottle.
+// StampBottle appends one passport mark to a Bottle's Journey.
 func (h *BottleHandler) StampBottle(c fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -136,30 +136,33 @@ func (h *BottleHandler) StampBottle(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
-	if err := h.validate.Struct(req); err != nil {
+
+	details, err := stamp.Prepare(req.SealIcon, req.Note)
+	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
+
 	if err := h.turnstile.Verify(c.Context(), req.TurnstileToken, c.IP()); err != nil {
 		return fiber.NewError(fiber.StatusForbidden, "stamp blocked")
 	}
 
-	journey, err := h.svc.StampBottle(c.Context(), service.StampBottleInput{
+	event, err := h.svc.StampBottle(c.Context(), service.StampBottleInput{
 		BottleID: id,
-		SealIcon: req.SealIcon,
-		Note:     req.Note,
+		SealIcon: details.SealIcon,
+		Note:     details.Note,
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, stamp.ErrStampRequired), errors.Is(err, stamp.ErrNoteTooLong):
-			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 		case errors.Is(err, service.ErrBottleNotFound):
 			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		case errors.Is(err, stamp.ErrEmpty), errors.Is(err, stamp.ErrNoteTooLong):
+			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 		default:
 			return fiber.NewError(fiber.StatusInternalServerError, "could not stamp bottle")
 		}
 	}
 
-	return c.Status(fiber.StatusOK).JSON(journey)
+	return c.Status(fiber.StatusCreated).JSON(event)
 }
 
 // DiscoverBottle is legacy claim path — Open must not claim (issue 03). No JWT.

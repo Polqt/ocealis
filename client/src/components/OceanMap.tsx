@@ -17,8 +17,9 @@ export default function OceanMap() {
   const [openErr, setOpenErr] = createSignal("");
   const [sealIcon, setSealIcon] = createSignal("");
   const [stampNote, setStampNote] = createSignal("");
-  const [stamping, setStamping] = createSignal(false);
   const [stampErr, setStampErr] = createSignal("");
+  const [stampDone, setStampDone] = createSignal(false);
+  const [stampBusy, setStampBusy] = createSignal(false);
 
   onMount(() => {
     const map = new maplibregl.Map({
@@ -95,9 +96,7 @@ export default function OceanMap() {
 
   async function openCork(id: number) {
     setOpenErr("");
-    setSealIcon("");
-    setStampNote("");
-    setStampErr("");
+    resetStamp();
     try {
       const [bottle, journey] = await Promise.all([openBottle(id), getJourney(id)]);
       setOpened({ bottle, events: journey.events ?? [] });
@@ -107,26 +106,54 @@ export default function OceanMap() {
     }
   }
 
-  async function addStamp(event: SubmitEvent) {
+  function resetStamp() {
+    setSealIcon("");
+    setStampNote("");
+    setStampErr("");
+    setStampDone(false);
+    setStampBusy(false);
+  }
+
+  function closeCork() {
+    setOpened(null);
+    resetStamp();
+  }
+
+  async function submitStamp(event: SubmitEvent) {
     event.preventDefault();
     const current = opened();
-    if (!current || (!sealIcon() && !stampNote().trim())) return;
+    if (!current || stampBusy()) return;
 
-    setStamping(true);
+    const note = stampNote().trim();
+    const seal = sealIcon();
+    if (!seal && !note) {
+      setStampErr("Choose a seal or leave a note.");
+      return;
+    }
+
+    setStampBusy(true);
     setStampErr("");
+    setStampDone(false);
     try {
-      const journey = await stampBottle(current.bottle.id, {
-        seal_icon: sealIcon() || undefined,
-        note: stampNote().trim() || undefined,
-        turnstile_token: "dev",
+      const turnstile =
+        (window as unknown as { turnstileToken?: string }).turnstileToken ?? "dev";
+      const stamped = await stampBottle(current.bottle.id, {
+        seal_icon: seal || undefined,
+        note: note || undefined,
+        turnstile_token: turnstile,
       });
-      setOpened({ bottle: journey.bottle, events: journey.events ?? [] });
+      setOpened(previous =>
+        previous?.bottle.id === current.bottle.id
+          ? { ...previous, events: [...previous.events, stamped] }
+          : previous,
+      );
       setSealIcon("");
       setStampNote("");
+      setStampDone(true);
     } catch (err) {
       setStampErr(err instanceof Error ? err.message : "could not Stamp");
     } finally {
-      setStamping(false);
+      setStampBusy(false);
     }
   }
 
@@ -141,7 +168,7 @@ export default function OceanMap() {
       <Show when={opened()}>
         {o => (
           <aside class="cork-open" aria-label="Opened Bottle">
-            <button type="button" class="cork-open__close" onClick={() => setOpened(null)}>
+            <button type="button" class="cork-open__close" onClick={closeCork}>
               Close
             </button>
             <p class="cork-open__nick">{o().bottle.nickname}</p>
@@ -155,39 +182,44 @@ export default function OceanMap() {
                 <For each={o().events}>{ev => <li>{journeyLabel(ev)}</li>}</For>
               </ol>
             </Show>
-            <form class="cork-open__stamp" onSubmit={addStamp}>
-              <h2>Stamp this Bottle</h2>
+            <form class="stamp-form" onSubmit={submitStamp}>
+              <h2>Stamp this Journey</h2>
               <label>
                 Seal
-                <select value={sealIcon()} onInput={e => setSealIcon(e.currentTarget.value)}>
+                <select value={sealIcon()} onInput={event => setSealIcon(event.currentTarget.value)}>
                   <option value="">No seal</option>
                   <option value="⚓">⚓ Anchor</option>
-                  <option value="🐚">🐚 Shell</option>
                   <option value="🌊">🌊 Wave</option>
+                  <option value="🐚">🐚 Shell</option>
                   <option value="⭐">⭐ Star</option>
                 </select>
               </label>
               <label>
-                Note <span>{stampNote().length}/80</span>
+                Note
                 <textarea
-                  rows={2}
-                  maxLength={80}
                   value={stampNote()}
-                  onInput={e => setStampNote(e.currentTarget.value)}
-                  placeholder="Optional passport note"
+                  onInput={event => setStampNote(event.currentTarget.value)}
+                  maxLength={80}
+                  rows={2}
+                  placeholder="A few words for the next Visitor"
                 />
               </label>
+              <button
+                type="submit"
+                disabled={stampBusy() || (!sealIcon() && !stampNote().trim())}
+              >
+                {stampBusy() ? "Stamping…" : "Stamp"}
+              </button>
               <Show when={stampErr()}>
-                <p class="cork-open__stamp-error" role="alert">
+                <p class="stamp-form__error" role="alert">
                   {stampErr()}
                 </p>
               </Show>
-              <button
-                type="submit"
-                disabled={stamping() || (!sealIcon() && !stampNote().trim())}
-              >
-                {stamping() ? "Stamping…" : "Add Stamp"}
-              </button>
+              <Show when={stampDone()}>
+                <p class="stamp-form__done" role="status">
+                  Journey stamped.
+                </p>
+              </Show>
             </form>
           </aside>
         )}
@@ -203,7 +235,9 @@ function journeyLabel(event: BottleEvent): string {
     case "drift":
       return "Drift";
     case "stamp":
-      return `Stamp${event.seal_icon ? ` ${event.seal_icon}` : ""}${event.note ? ` — ${event.note}` : ""}`;
+      return ["Stamp", event.seal_icon, event.note ? `— ${event.note}` : ""]
+        .filter(Boolean)
+        .join(" ");
     case "re_released":
       return "Re-release";
     case "sink":

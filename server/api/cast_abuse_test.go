@@ -33,8 +33,10 @@ func (c captchaStub) Verify(ctx context.Context, token, ip string) error {
 }
 
 type castRecordingSvc struct {
-	last service.CreateBottleInput
-	got  bool
+	last      service.CreateBottleInput
+	got       bool
+	stampLast service.StampBottleInput
+	stampGot  bool
 }
 
 func (f *castRecordingSvc) CreateBottle(ctx context.Context, in service.CreateBottleInput) (*domain.Bottle, error) {
@@ -55,8 +57,17 @@ func (f *castRecordingSvc) GetBottle(context.Context, int32) (*domain.Bottle, er
 func (f *castRecordingSvc) GetJourney(context.Context, int32) (*domain.Journey, error) {
 	return nil, nil
 }
-func (f *castRecordingSvc) StampBottle(context.Context, service.StampBottleInput) (*domain.Journey, error) {
-	return nil, nil
+func (f *castRecordingSvc) StampBottle(_ context.Context, in service.StampBottleInput) (*domain.BottleEvent, error) {
+	f.stampGot = true
+	f.stampLast = in
+	return &domain.BottleEvent{
+		ID:        2,
+		BottleID:  in.BottleID,
+		EventType: domain.EventTypeStamp,
+		SealIcon:  in.SealIcon,
+		Note:      in.Note,
+		CreatedAt: time.Now(),
+	}, nil
 }
 func (f *castRecordingSvc) DiscoverBottle(context.Context, service.DiscoverBottleInput) (*domain.Journey, error) {
 	return nil, nil
