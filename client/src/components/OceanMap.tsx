@@ -1,7 +1,13 @@
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { browseMap, getJourney, openBottle, type MapBrowseResult } from "~/lib/api";
+import {
+  browseMap,
+  getJourney,
+  openBottle,
+  reReleaseBottle,
+  type MapBrowseResult,
+} from "~/lib/api";
 import type { Bottle, BottleEvent } from "~/lib/types";
 
 const HEAT_SRC = "ocean-heat";
@@ -10,11 +16,17 @@ const CORK_SRC = "ocean-corks";
 const CORK_LAYER = "ocean-corks-circles";
 
 type Opened = { bottle: Bottle; events: BottleEvent[] };
+type ReReleasePhase = "ready" | "releasing";
 
 export default function OceanMap() {
   let el!: HTMLDivElement;
+  let oceanMap: maplibregl.Map | undefined;
   const [opened, setOpened] = createSignal<Opened | null>(null);
   const [openErr, setOpenErr] = createSignal("");
+  const [reReleaseNickname, setReReleaseNickname] = createSignal("");
+  const [reReleasePhase, setReReleasePhase] = createSignal<ReReleasePhase>("ready");
+  const [reReleaseErr, setReReleaseErr] = createSignal("");
+  const [reReleaseNotice, setReReleaseNotice] = createSignal("");
 
   onMount(() => {
     const map = new maplibregl.Map({
@@ -26,6 +38,7 @@ export default function OceanMap() {
       maxZoom: 10,
       attributionControl: { compact: true },
     });
+    oceanMap = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -85,12 +98,15 @@ export default function OceanMap() {
 
     onCleanup(() => {
       clearTimeout(timer);
+      oceanMap = undefined;
       map.remove();
     });
   });
 
   async function openCork(id: number) {
     setOpenErr("");
+    setReReleaseNotice("");
+    setReReleaseErr("");
     try {
       const [bottle, journey] = await Promise.all([openBottle(id), getJourney(id)]);
       setOpened({ bottle, events: journey.events ?? [] });
@@ -100,12 +116,45 @@ export default function OceanMap() {
     }
   }
 
+  async function onReRelease(e: Event) {
+    e.preventDefault();
+    const current = opened();
+    if (!current) return;
+
+    setReReleaseErr("");
+    setReReleasePhase("releasing");
+    try {
+      const location = await readGeo();
+      const turnstile =
+        (window as unknown as { turnstileToken?: string }).turnstileToken ?? "dev";
+      await reReleaseBottle(current.bottle.id, {
+        nickname: reReleaseNickname().trim(),
+        turnstile_token: turnstile,
+        lat: location.lat,
+        lng: location.lng,
+      });
+      setOpened(null);
+      setReReleaseNickname("");
+      setReReleaseNotice("The Bottle is hidden by Mystery Delay, then it will Drift elsewhere.");
+      if (oceanMap) await refresh(oceanMap);
+    } catch (err) {
+      setReReleaseErr(err instanceof Error ? err.message : "could not Re-release");
+    } finally {
+      setReReleasePhase("ready");
+    }
+  }
+
   return (
     <>
       <div class="ocean-map" ref={el} role="application" aria-label="Ocean map" />
       <Show when={openErr()}>
         <p class="cork-open__err" role="alert">
           {openErr()}
+        </p>
+      </Show>
+      <Show when={reReleaseNotice()}>
+        <p class="cork-open__notice" role="status">
+          {reReleaseNotice()}
         </p>
       </Show>
       <Show when={opened()}>
@@ -125,11 +174,47 @@ export default function OceanMap() {
                 <For each={o().events}>{ev => <li>{journeyLabel(ev.event_type)}</li>}</For>
               </ol>
             </Show>
+            <form class="cork-open__release" onSubmit={onReRelease}>
+              <label>
+                Your Nickname
+                <input
+                  name="re-release-nickname"
+                  maxlength={24}
+                  required
+                  value={reReleaseNickname()}
+                  onInput={e => setReReleaseNickname(e.currentTarget.value)}
+                  autocomplete="nickname"
+                />
+              </label>
+              <Show when={reReleaseErr()}>
+                <p class="cork-open__release-error" role="alert">
+                  {reReleaseErr()}
+                </p>
+              </Show>
+              <button type="submit" disabled={reReleasePhase() === "releasing"}>
+                {reReleasePhase() === "releasing" ? "Re-releasing…" : "Re-release"}
+              </button>
+            </form>
           </aside>
         )}
       </Show>
     </>
   );
+}
+
+async function readGeo(): Promise<{ lat?: number; lng?: number }> {
+  if (!navigator.geolocation) return {};
+  try {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        timeout: 8000,
+        maximumAge: 60_000,
+      });
+    });
+    return { lat: position.coords.latitude, lng: position.coords.longitude };
+  } catch {
+    return {};
+  }
 }
 
 function journeyLabel(t: string): string {

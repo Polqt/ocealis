@@ -4,6 +4,7 @@ import type {
   Journey,
   MapBrowseQuery,
   MapBrowseResult,
+  ReReleaseBottleRequest,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
@@ -54,6 +55,19 @@ export async function getJourney(id: number): Promise<Journey> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error ?? `journey failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function reReleaseBottle(id: number, body: ReReleaseBottleRequest): Promise<Bottle> {
+  const res = await fetch(`${API_BASE}/api/v1/bottles/${id}/release`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error ?? `Re-release failed (${res.status})`);
   }
   return res.json();
 }

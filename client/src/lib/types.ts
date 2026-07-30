@@ -7,6 +7,13 @@ export type CastBottleRequest = {
   bottle_style?: number;
 };
 
+export type ReReleaseBottleRequest = {
+  nickname: string;
+  turnstile_token: string;
+  lat?: number;
+  lng?: number;
+};
+
 export type Bottle = {
   id: number;
   nickname: string;

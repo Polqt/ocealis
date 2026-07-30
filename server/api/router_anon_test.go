@@ -34,7 +34,7 @@ func (f *fakeBottleSvc) GetJourney(context.Context, int32) (*domain.Journey, err
 func (f *fakeBottleSvc) DiscoverBottle(context.Context, service.DiscoverBottleInput) (*domain.Journey, error) {
 	return nil, nil
 }
-func (f *fakeBottleSvc) ReleaseBottle(context.Context, int32, int32, float64, float64) (*domain.Bottle, error) {
+func (f *fakeBottleSvc) ReReleaseBottle(context.Context, service.ReReleaseBottleInput) (*domain.Bottle, error) {
 	return nil, nil
 }
 
@@ -42,10 +42,10 @@ func TestAnonymousVisitorCanGetBottleWithoutAuth(t *testing.T) {
 	log := zap.NewNop()
 	hub := ws.NewHub()
 	bottle := &domain.Bottle{
-		ID:         1,
+		ID:          1,
 		MessageText: "hello ocean",
-		Status:     domain.BottleStatusDrifting,
-		CreatedAt:  time.Now(),
+		Status:      domain.BottleStatusDrifting,
+		CreatedAt:   time.Now(),
 	}
 
 	app := fiber.New()
