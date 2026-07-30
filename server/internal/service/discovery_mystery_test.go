@@ -26,6 +26,12 @@ func (f *fakeBottles) UpdateStatus(context.Context, int32, domain.BottleStatus) 
 func (f *fakeBottles) UpdatePosition(context.Context, int32, float64, float64, domain.BottleStatus) (*domain.Bottle, error) {
 	return nil, nil
 }
+func (f *fakeBottles) ReRelease(context.Context, repository.ReReleaseBottleParams) (*domain.Bottle, error) {
+	return nil, nil
+}
+func (f *fakeBottles) MakeVisible(context.Context, int32) (*domain.Bottle, error) {
+	return nil, nil
+}
 func (f *fakeBottles) ListActive(context.Context) ([]domain.Bottle, error) { return nil, nil }
 func (f *fakeBottles) ReleaseScheduled(context.Context) ([]domain.Bottle, error) {
 	return nil, nil

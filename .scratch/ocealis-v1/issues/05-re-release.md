@@ -1,6 +1,6 @@
 # Re-release
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -8,13 +8,13 @@ Finder Re-releases a Bottle: required Nickname, original Message immutable, opti
 
 ## Acceptance criteria
 
-- [ ] Re-release requires Nickname; keeps original Message unchanged
-- [ ] Journey appends re-release (and prior stamps remain)
-- [ ] Drop uses finder Shoreline snap; Mystery Delay 15–30 min before visible again
-- [ ] Old map position no longer shows the Bottle once re-released (relocated)
-- [ ] Turnstile + IP rate limit enforced
-- [ ] UI: Re-release from Open/Stamp flow
-- [ ] Tests: immutability, delay, relocation, abuse
+- [x] Re-release requires Nickname; keeps original Message unchanged
+- [x] Journey appends re-release (and prior stamps remain)
+- [x] Drop uses finder Shoreline snap; Mystery Delay 15–30 min before visible again
+- [x] Old map position no longer shows the Bottle once re-released (relocated)
+- [x] Turnstile + IP rate limit enforced
+- [x] UI: Re-release from Open/Stamp flow
+- [x] Tests: immutability, delay, relocation, abuse
 
 ## Blocked by
 
@@ -26,4 +26,4 @@ Finder Re-releases a Bottle: required Nickname, original Message immutable, opti
 
 ## Comments
 
-Stamp before re-release is optional in product; this issue may allow re-release without stamp if simpler — Journey must still be correct. Published from `/to-issues`.
+Re-release now validates the finder’s Nickname and abuse checks, snaps to Shoreline, preserves the Message and prior Journey, and hides the relocated Bottle for a fresh Mystery Delay. Demo: Open a Cork, enter a Nickname, choose Re-release, then see the Cork leave the Ocean until its scheduled visibility flip.

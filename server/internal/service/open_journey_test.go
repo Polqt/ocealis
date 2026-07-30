@@ -29,6 +29,12 @@ func (r *openBottleRepo) UpdateStatus(context.Context, int32, domain.BottleStatu
 func (r *openBottleRepo) UpdatePosition(context.Context, int32, float64, float64, domain.BottleStatus) (*domain.Bottle, error) {
 	return nil, nil
 }
+func (r *openBottleRepo) ReRelease(context.Context, repository.ReReleaseBottleParams) (*domain.Bottle, error) {
+	return nil, nil
+}
+func (r *openBottleRepo) MakeVisible(context.Context, int32) (*domain.Bottle, error) {
+	return nil, nil
+}
 func (r *openBottleRepo) ListActive(context.Context) ([]domain.Bottle, error) { return nil, nil }
 func (r *openBottleRepo) ReleaseScheduled(context.Context) ([]domain.Bottle, error) {
 	return nil, nil
