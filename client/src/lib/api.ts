@@ -5,6 +5,7 @@ import type {
   Journey,
   MapBrowseQuery,
   MapBrowseResult,
+  ReReleaseBottleRequest,
   StampBottleRequest,
 } from "./types";
 
@@ -69,6 +70,19 @@ export async function stampBottle(id: number, body: StampBottleRequest): Promise
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error ?? `stamp failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function reReleaseBottle(id: number, body: ReReleaseBottleRequest): Promise<Bottle> {
+  const res = await fetch(`${API_BASE}/api/v1/bottles/${id}/release`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error ?? `Re-release failed (${res.status})`);
   }
   return res.json();
 }
