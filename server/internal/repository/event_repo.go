@@ -128,12 +128,6 @@ func mapEvent(row ocealis.BottleEvent) *domain.BottleEvent {
 	if row.Lng.Valid {
 		e.Lng = row.Lng.Float64
 	}
-	if row.SealIcon.Valid {
-		e.SealIcon = row.SealIcon.String
-	}
-	if row.Note.Valid {
-		e.Note = row.Note.String
-	}
 	if row.CreatedAt.Valid {
 		e.CreatedAt = row.CreatedAt.Time
 	}
