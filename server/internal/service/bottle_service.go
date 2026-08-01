@@ -13,6 +13,7 @@ import (
 	"github.com/Polqt/ocealis/internal/cast"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
+	"github.com/Polqt/ocealis/internal/rerelease"
 	"github.com/Polqt/ocealis/internal/stamp"
 	"github.com/Polqt/ocealis/ws"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -21,6 +22,7 @@ import (
 
 var (
 	ErrBottleNotFound       = errors.New("bottle not found")
+	ErrBottleNotAvailable   = errors.New("bottle is not available to re-release")
 	ErrAlreadyDiscovered    = errors.New("bottle already discovered")
 	ErrSenderCannotDiscover = errors.New("sender cannot discover their own bottle")
 )
@@ -47,13 +49,20 @@ type StampBottleInput struct {
 	Note     string
 }
 
+type ReReleaseBottleInput struct {
+	BottleID int32
+	Nickname string
+	Lat      *float64
+	Lng      *float64
+}
+
 type BottleService interface {
 	CreateBottle(ctx context.Context, input CreateBottleInput) (*domain.Bottle, error)
 	GetBottle(ctx context.Context, id int32) (*domain.Bottle, error)
 	GetJourney(ctx context.Context, bottleID int32) (*domain.Journey, error)
 	StampBottle(ctx context.Context, input StampBottleInput) (*domain.BottleEvent, error)
 	DiscoverBottle(ctx context.Context, input DiscoverBottleInput) (*domain.Journey, error)
-	ReleaseBottle(ctx context.Context, bottleID, userID int32, lat, lng float64) (*domain.Bottle, error)
+	ReReleaseBottle(ctx context.Context, input ReReleaseBottleInput) (*domain.Bottle, error)
 }
 
 type bottleService struct {
@@ -222,38 +231,68 @@ func (s *bottleService) DiscoverBottle(ctx context.Context, input DiscoverBottle
 	return s.GetJourney(ctx, input.BottleID)
 }
 
-func (s *bottleService) ReleaseBottle(ctx context.Context, bottleID, userID int32, lat, lng float64) (*domain.Bottle, error) {
-	bottle, err := s.bottles.GetByID(ctx, bottleID)
+func (s *bottleService) ReReleaseBottle(ctx context.Context, input ReReleaseBottleInput) (*domain.Bottle, error) {
+	bottle, err := s.bottles.GetByID(ctx, input.BottleID)
 	if err != nil {
 		return nil, ErrBottleNotFound
+	}
+	if bottle.Status != domain.BottleStatusDrifting || !bottle.IsReleased {
+		return nil, ErrBottleNotAvailable
+	}
+
+	now := time.Now()
+	plan, err := rerelease.Prepare(
+		input.Nickname,
+		input.Lat,
+		input.Lng,
+		now,
+		rand.New(rand.NewSource(now.UnixNano())),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	var updated *domain.Bottle
 
-	err = db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
+	apply := func(q *ocealis.Queries) error {
 		bottlesTx := s.bottles.WithTx(q)
 		eventsTx := s.events.WithTx(q)
 
 		if _, err := eventsTx.Create(ctx, repository.CreateEventParams{
 			BottleID:  bottle.ID,
 			EventType: domain.EventTypeReReleased,
-			Lat:       lat,
-			Lng:       lng,
+			Lat:       plan.Lat,
+			Lng:       plan.Lng,
 		}); err != nil {
 			return fmt.Errorf("create re-release event:%w", err)
 		}
 
-		updated, err = bottlesTx.UpdatePosition(ctx, bottle.ID, lat, lng, domain.BottleStatusDrifting)
+		updated, err = bottlesTx.ReRelease(ctx, repository.ReReleaseBottleParams{
+			ID:         bottle.ID,
+			Nickname:   plan.Nickname,
+			Lat:        plan.Lat,
+			Lng:        plan.Lng,
+			Status:     plan.Status,
+			IsReleased: plan.IsReleased,
+			VisibleAt:  plan.VisibleAt,
+		})
 		if err != nil {
 			return fmt.Errorf("update bottle position:%w", err)
 		}
 		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("release bottle:%w", err)
 	}
 
-	s.bc.BroadcastReleased(updated.ID)
+	// Tests use in-memory repositories without a database pool.
+	if s.pool == nil {
+		err = apply(nil)
+	} else {
+		err = db.WithTransaction(ctx, s.pool, apply)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("re-release bottle:%w", err)
+	}
+
+	// No broadcast during Mystery Delay. The scheduler announces the Cork.
 	return updated, nil
 }

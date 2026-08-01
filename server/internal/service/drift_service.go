@@ -6,8 +6,6 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/Polqt/ocealis/db"
-	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
 	"github.com/Polqt/ocealis/util"
@@ -150,22 +148,9 @@ func (s *driftService) ReleaseScheduled(ctx context.Context) error {
 	}
 
 	for _, bottle := range due {
-		err := db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
-			bottlesTx := s.bottles.WithTx(q)
-			eventsTx := s.events.WithTx(q)
-
-			if _, err := eventsTx.Create(ctx, repository.CreateEventParams{
-				BottleID:  bottle.ID,
-				EventType: domain.EventTypeCast,
-				Lat:       bottle.StartLat,
-				Lng:       bottle.StartLng,
-			}); err != nil {
-				return err
-			}
-
-			_, err := bottlesTx.UpdatePosition(ctx, bottle.ID, bottle.StartLat, bottle.StartLng, domain.BottleStatusDrifting)
-			return err
-		})
+		// Cast/Re-release already appended its Journey event and relocated the
+		// Bottle. Ending Mystery Delay only makes that current position visible.
+		_, err := s.bottles.MakeVisible(ctx, bottle.ID)
 		if err != nil {
 			s.log.Error("release scheduled bottle failed", zap.Int32("bottle_id", bottle.ID), zap.Error(err))
 			continue
