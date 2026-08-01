@@ -13,6 +13,13 @@ export type StampBottleRequest = {
   turnstile_token: string;
 };
 
+export type ReReleaseBottleRequest = {
+  nickname: string;
+  turnstile_token: string;
+  lat?: number;
+  lng?: number;
+};
+
 export type Bottle = {
   id: number;
   nickname: string;

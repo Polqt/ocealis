@@ -250,7 +250,8 @@ body {
 }
 
 .stamp-form select,
-.stamp-form textarea {
+.stamp-form textarea,
+.stamp-form input {
   padding: 0.55rem 0.6rem;
   border: 1px solid rgba(200, 231, 240, 0.25);
   border-radius: 0;
@@ -289,6 +290,21 @@ body {
 
 .stamp-form__done {
   color: var(--sea-foam);
+}
+
+.cork-open__notice {
+  position: absolute;
+  z-index: 3;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 1.5rem;
+  max-width: 22rem;
+  margin-inline: auto;
+  padding: 0.8rem 1rem;
+  color: var(--sea-foam);
+  text-align: center;
+  background: rgba(6, 24, 32, 0.9);
+  border: 1px solid rgba(200, 231, 240, 0.25);
 }
 
 .ocean-fallback {
