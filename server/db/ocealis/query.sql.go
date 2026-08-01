@@ -389,6 +389,89 @@ func (q *Queries) ListScheduledBottles(ctx context.Context) ([]Bottle, error) {
 	return items, nil
 }
 
+const makeBottleVisible = `-- name: MakeBottleVisible :one
+UPDATE bottles
+SET status = 'drifting',
+    is_release = TRUE
+WHERE id = $1
+RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+`
+
+func (q *Queries) MakeBottleVisible(ctx context.Context, id int32) (Bottle, error) {
+	row := q.db.QueryRow(ctx, makeBottleVisible, id)
+	var i Bottle
+	err := row.Scan(
+		&i.ID,
+		&i.SenderID,
+		&i.Nickname,
+		&i.MessageText,
+		&i.BottleStyle,
+		&i.StartLat,
+		&i.StartLng,
+		&i.CurrentLat,
+		&i.CurrentLng,
+		&i.Hops,
+		&i.Status,
+		&i.ScheduledRelease,
+		&i.IsRelease,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const reReleaseBottle = `-- name: ReReleaseBottle :one
+UPDATE bottles
+SET nickname = $2,
+    current_lat = $3,
+    current_lng = $4,
+    hops = hops + 1,
+    status = $5,
+    is_release = $6,
+    scheduled_release = $7
+WHERE id = $1
+RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
+`
+
+type ReReleaseBottleParams struct {
+	ID               int32
+	Nickname         string
+	CurrentLat       pgtype.Float8
+	CurrentLng       pgtype.Float8
+	Status           string
+	IsRelease        pgtype.Bool
+	ScheduledRelease pgtype.Timestamptz
+}
+
+func (q *Queries) ReReleaseBottle(ctx context.Context, arg ReReleaseBottleParams) (Bottle, error) {
+	row := q.db.QueryRow(ctx, reReleaseBottle,
+		arg.ID,
+		arg.Nickname,
+		arg.CurrentLat,
+		arg.CurrentLng,
+		arg.Status,
+		arg.IsRelease,
+		arg.ScheduledRelease,
+	)
+	var i Bottle
+	err := row.Scan(
+		&i.ID,
+		&i.SenderID,
+		&i.Nickname,
+		&i.MessageText,
+		&i.BottleStyle,
+		&i.StartLat,
+		&i.StartLng,
+		&i.CurrentLat,
+		&i.CurrentLng,
+		&i.Hops,
+		&i.Status,
+		&i.ScheduledRelease,
+		&i.IsRelease,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateBottlePosition = `-- name: UpdateBottlePosition :one
 UPDATE bottles
 SET current_lat = $2,

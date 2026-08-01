@@ -6,6 +6,7 @@ import (
 
 	"github.com/Polqt/ocealis/api/middleware"
 	"github.com/Polqt/ocealis/internal/cast"
+	"github.com/Polqt/ocealis/internal/rerelease"
 	"github.com/Polqt/ocealis/internal/service"
 	"github.com/Polqt/ocealis/internal/stamp"
 	"github.com/go-playground/validator/v10"
@@ -27,8 +28,10 @@ type DiscoverBottleRequest struct {
 }
 
 type releaseBottleRequest struct {
-	Lat float64 `json:"lat" validate:"required,min=-90,max=90"`
-	Lng float64 `json:"lng" validate:"required,min=-180,max=180"`
+	Nickname       string   `json:"nickname" validate:"required,min=1,max=24"`
+	Lat            *float64 `json:"lat" validate:"omitempty,min=-90,max=90"`
+	Lng            *float64 `json:"lng" validate:"omitempty,min=-180,max=180"`
+	TurnstileToken string   `json:"turnstile_token" validate:"required"`
 }
 
 type stampBottleRequest struct {
@@ -202,7 +205,7 @@ func (h *BottleHandler) DiscoverBottle(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(journey)
 }
 
-// ReleaseBottle is Re-release — anonymous, Nickname in later issue.
+// ReleaseBottle is Re-release — anonymous Visitor with required Nickname.
 func (h *BottleHandler) ReleaseBottle(c fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -217,9 +220,28 @@ func (h *BottleHandler) ReleaseBottle(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
 
-	bottle, err := h.svc.ReleaseBottle(c.Context(), id, 0, req.Lat, req.Lng)
+	if err := h.turnstile.Verify(c.Context(), req.TurnstileToken, c.IP()); err != nil {
+		return fiber.NewError(fiber.StatusForbidden, "re-release blocked")
+	}
+
+	bottle, err := h.svc.ReReleaseBottle(c.Context(), service.ReReleaseBottleInput{
+		BottleID: id,
+		Nickname: req.Nickname,
+		Lat:      req.Lat,
+		Lng:      req.Lng,
+	})
 	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "could not re-release bottle")
+		switch {
+		case errors.Is(err, service.ErrBottleNotFound):
+			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		case errors.Is(err, service.ErrBottleNotAvailable):
+			return fiber.NewError(fiber.StatusConflict, err.Error())
+		case errors.Is(err, rerelease.ErrNicknameRequired),
+			errors.Is(err, rerelease.ErrNicknameTooLong):
+			return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "could not re-release bottle")
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(bottle)

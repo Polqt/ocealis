@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
@@ -32,6 +33,16 @@ type FindNearbyParams struct {
 	Limit     int32
 }
 
+type ReReleaseBottleParams struct {
+	ID         int32
+	Nickname   string
+	Lat        float64
+	Lng        float64
+	Status     domain.BottleStatus
+	IsReleased bool
+	VisibleAt  time.Time
+}
+
 type BottleRepository interface {
 	Create(ctx context.Context, params CreateBottleParams) (*domain.Bottle, error)
 	GetByID(ctx context.Context, id int32) (*domain.Bottle, error)
@@ -39,6 +50,10 @@ type BottleRepository interface {
 	UpdateStatus(ctx context.Context, id int32, status domain.BottleStatus) (*domain.Bottle, error)
 	// UpdatePosition moves the bottle to new coordinates, increments hops, and sets status.
 	UpdatePosition(ctx context.Context, id int32, lat, lng float64, status domain.BottleStatus) (*domain.Bottle, error)
+	// ReRelease relocates a Bottle without changing its original Message.
+	ReRelease(ctx context.Context, params ReReleaseBottleParams) (*domain.Bottle, error)
+	// MakeVisible ends Mystery Delay without moving the Bottle or changing Journey.
+	MakeVisible(ctx context.Context, id int32) (*domain.Bottle, error)
 	// ListActive returns all bottles currently drifting that have been released.
 	ListActive(ctx context.Context) ([]domain.Bottle, error)
 	ReleaseScheduled(ctx context.Context) ([]domain.Bottle, error)
@@ -107,6 +122,30 @@ func (r *postgresBottleRepo) UpdatePosition(ctx context.Context, id int32, lat, 
 		CurrentLng: pgtype.Float8{Float64: lng, Valid: true},
 		Status:     string(status),
 	})
+	if err != nil {
+		return nil, err
+	}
+	return mapBottle(row), nil
+}
+
+func (r *postgresBottleRepo) ReRelease(ctx context.Context, params ReReleaseBottleParams) (*domain.Bottle, error) {
+	row, err := r.q.ReReleaseBottle(ctx, ocealis.ReReleaseBottleParams{
+		ID:               params.ID,
+		Nickname:         params.Nickname,
+		CurrentLat:       pgtype.Float8{Float64: params.Lat, Valid: true},
+		CurrentLng:       pgtype.Float8{Float64: params.Lng, Valid: true},
+		Status:           string(params.Status),
+		IsRelease:        pgtype.Bool{Bool: params.IsReleased, Valid: true},
+		ScheduledRelease: pgtype.Timestamptz{Time: params.VisibleAt, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mapBottle(row), nil
+}
+
+func (r *postgresBottleRepo) MakeVisible(ctx context.Context, id int32) (*domain.Bottle, error) {
+	row, err := r.q.MakeBottleVisible(ctx, id)
 	if err != nil {
 		return nil, err
 	}
