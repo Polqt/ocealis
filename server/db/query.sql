@@ -21,6 +21,18 @@ SET current_lat = $2,
 WHERE id = $1
 RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at;
 
+-- name: ReReleaseBottle :one
+UPDATE bottles
+SET nickname = $2,
+    current_lat = $3,
+    current_lng = $4,
+    hops = hops + 1,
+    status = $5,
+    is_release = $6,
+    scheduled_release = $7
+WHERE id = $1
+RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at;
+
 -- name: ListActiveDriftingBottles :many
 SELECT id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at
 FROM bottles
@@ -33,6 +45,13 @@ FROM bottles
 WHERE is_release = FALSE
   AND status = 'scheduled'
   AND scheduled_release <= NOW();
+
+-- name: MakeBottleVisible :one
+UPDATE bottles
+SET status = 'drifting',
+    is_release = TRUE
+WHERE id = $1
+RETURNING id, sender_id, nickname, message_text, bottle_style, start_lat, start_lng, current_lat, current_lng, hops, status, scheduled_release, is_release, created_at;
 
 -- name: GetNearbyBottles :many
 SELECT id, sender_id, nickname, message_text, bottle_style,

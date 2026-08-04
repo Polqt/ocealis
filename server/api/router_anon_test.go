@@ -37,7 +37,7 @@ func (f *fakeBottleSvc) StampBottle(context.Context, service.StampBottleInput) (
 func (f *fakeBottleSvc) DiscoverBottle(context.Context, service.DiscoverBottleInput) (*domain.Journey, error) {
 	return nil, nil
 }
-func (f *fakeBottleSvc) ReleaseBottle(context.Context, int32, int32, float64, float64) (*domain.Bottle, error) {
+func (f *fakeBottleSvc) ReReleaseBottle(context.Context, service.ReReleaseBottleInput) (*domain.Bottle, error) {
 	return nil, nil
 }
 

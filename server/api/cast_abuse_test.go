@@ -72,7 +72,7 @@ func (f *castRecordingSvc) StampBottle(_ context.Context, in service.StampBottle
 func (f *castRecordingSvc) DiscoverBottle(context.Context, service.DiscoverBottleInput) (*domain.Journey, error) {
 	return nil, nil
 }
-func (f *castRecordingSvc) ReleaseBottle(context.Context, int32, int32, float64, float64) (*domain.Bottle, error) {
+func (f *castRecordingSvc) ReReleaseBottle(context.Context, service.ReReleaseBottleInput) (*domain.Bottle, error) {
 	return nil, nil
 }
 
