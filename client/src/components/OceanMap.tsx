@@ -9,6 +9,7 @@ import {
   stampBottle,
   type MapBrowseResult,
 } from "~/lib/api";
+import { startMapPolling } from "~/lib/mapPolling";
 import type { Bottle, BottleEvent } from "~/lib/types";
 
 const HEAT_SRC = "ocean-heat";
@@ -47,6 +48,7 @@ export default function OceanMap() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopPolling: (() => void) | undefined;
     const schedule = () => {
       clearTimeout(timer);
       timer = setTimeout(() => void refresh(map), 280);
@@ -84,6 +86,7 @@ export default function OceanMap() {
         },
       });
       void refresh(map);
+      stopPolling = startMapPolling(() => void refresh(map));
     });
 
     map.on("mouseenter", CORK_LAYER, () => {
@@ -103,6 +106,7 @@ export default function OceanMap() {
 
     onCleanup(() => {
       clearTimeout(timer);
+      stopPolling?.();
       oceanMap = undefined;
       map.remove();
     });

@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const DriftTickHours = 0.25 // 15 minutes = 6 hours simulated ocean drift
+const DriftTickHours = 0.25 // 15 minutes of ocean Drift per scheduler tick
 
 // CurrentZone maps a region of the ocean to a dominant current direction and speed.
 // This is a simplified gyre model, real ocean currents follow these
@@ -73,6 +73,11 @@ func (s *driftService) Tick(ctx context.Context) error {
 
 	for i := range activeBots {
 		b := &activeBots[i]
+		// Mystery Delay freezes a Bottle at its Shoreline drop point. The
+		// release job makes it visible before a later tick can move it.
+		if b.Status != domain.BottleStatusDrifting || !b.IsReleased {
+			continue
+		}
 		if err := s.driftOne(ctx, b, func(e domain.BottleEvent) {
 			s.bc.BroadcastDrift(ws.DriftPayload{
 				BottleID:    e.BottleID,
@@ -99,7 +104,15 @@ func (s *driftService) driftOne(ctx context.Context, bottle *domain.Bottle, onDr
 
 	newLat, newLng := util.ApplyDrift(bottle.CurrentLat, bottle.CurrentLng, speed, bearing, DriftTickHours)
 
-	// Bug fix: drift events must be typed "drift", not "discovered".
+	// Persist first so Journey never reports Drift that the map cannot show.
+	updated, err := s.bottles.UpdatePosition(ctx, bottle.ID, newLat, newLng, domain.BottleStatusDrifting)
+	if err != nil {
+		return fmt.Errorf("update Drift position for Bottle %d: %w", bottle.ID, err)
+	}
+	bottle.CurrentLat = updated.CurrentLat
+	bottle.CurrentLng = updated.CurrentLng
+	bottle.Hops = updated.Hops
+
 	event, err := s.events.Create(ctx, repository.CreateEventParams{
 		BottleID:  bottle.ID,
 		EventType: domain.EventTypeDrift,
@@ -109,9 +122,6 @@ func (s *driftService) driftOne(ctx context.Context, bottle *domain.Bottle, onDr
 	if err != nil {
 		return fmt.Errorf("drift bottle %d: %w", bottle.ID, err)
 	}
-
-	// Persist the new coordinates so the next tick starts from the right position.
-	_, _ = s.bottles.UpdatePosition(ctx, bottle.ID, newLat, newLng, domain.BottleStatusDrifting)
 
 	if onDrift != nil {
 		onDrift(*event)

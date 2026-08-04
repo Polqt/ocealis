@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "vinxi dev",
     "build": "vinxi build",
+    "test": "node --test --experimental-strip-types \"tests/**/*.test.ts\"",
     "start": "vinxi start"
   },
   "dependencies": {
