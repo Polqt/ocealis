@@ -47,6 +47,7 @@ export default function OceanMap() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
     const schedule = () => {
       clearTimeout(timer);
       timer = setTimeout(() => void refresh(map), 280);
@@ -84,6 +85,7 @@ export default function OceanMap() {
         },
       });
       void refresh(map);
+      pollTimer = setInterval(() => void refresh(map), 60_000);
     });
 
     map.on("mouseenter", CORK_LAYER, () => {
@@ -103,6 +105,7 @@ export default function OceanMap() {
 
     onCleanup(() => {
       clearTimeout(timer);
+      clearInterval(pollTimer);
       oceanMap = undefined;
       map.remove();
     });
