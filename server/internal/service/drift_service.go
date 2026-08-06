@@ -73,6 +73,11 @@ func (s *driftService) Tick(ctx context.Context) error {
 
 	for i := range activeBots {
 		b := &activeBots[i]
+		// Mystery Delay Bottles stay fixed at their Shoreline drop point until
+		// ReleaseScheduled makes them visible Corks.
+		if b.Status != domain.BottleStatusDrifting || !b.IsReleased {
+			continue
+		}
 		if err := s.driftOne(ctx, b, func(e domain.BottleEvent) {
 			s.bc.BroadcastDrift(ws.DriftPayload{
 				BottleID:    e.BottleID,
