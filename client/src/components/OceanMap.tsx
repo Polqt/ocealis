@@ -15,6 +15,7 @@ const HEAT_SRC = "ocean-heat";
 const HEAT_LAYER = "ocean-heat-circles";
 const CORK_SRC = "ocean-corks";
 const CORK_LAYER = "ocean-corks-circles";
+const DRIFT_POLL_MS = 60_000;
 
 type Opened = { bottle: Bottle; events: BottleEvent[] };
 
@@ -47,6 +48,7 @@ export default function OceanMap() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let driftPoll: ReturnType<typeof setInterval> | undefined;
     const schedule = () => {
       clearTimeout(timer);
       timer = setTimeout(() => void refresh(map), 280);
@@ -84,6 +86,7 @@ export default function OceanMap() {
         },
       });
       void refresh(map);
+      driftPoll = setInterval(() => void refresh(map), DRIFT_POLL_MS);
     });
 
     map.on("mouseenter", CORK_LAYER, () => {
@@ -103,6 +106,7 @@ export default function OceanMap() {
 
     onCleanup(() => {
       clearTimeout(timer);
+      clearInterval(driftPoll);
       oceanMap = undefined;
       map.remove();
     });
