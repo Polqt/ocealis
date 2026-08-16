@@ -73,6 +73,12 @@ func (s *driftService) Tick(ctx context.Context) error {
 
 	for i := range activeBots {
 		b := &activeBots[i]
+		// Mystery Delay keeps a Bottle still at its Cast/Re-release drop until it
+		// becomes a visible Cork. ListActive enforces this in storage; keep the
+		// life-cycle rule here too so a hidden Bottle cannot drift by accident.
+		if b.Status != domain.BottleStatusDrifting || !b.IsReleased {
+			continue
+		}
 		if err := s.driftOne(ctx, b, func(e domain.BottleEvent) {
 			s.bc.BroadcastDrift(ws.DriftPayload{
 				BottleID:    e.BottleID,
