@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "vinxi dev",
     "build": "vinxi build",
-    "start": "vinxi start"
+    "start": "vinxi start",
+    "test": "node --experimental-strip-types --test src/lib/mapPoll.test.mjs"
   },
   "dependencies": {
     "@solidjs/router": "^0.15.0",
