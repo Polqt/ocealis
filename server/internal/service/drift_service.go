@@ -6,6 +6,8 @@ import (
 	"math"
 	"math/rand"
 
+	"github.com/Polqt/ocealis/db"
+	"github.com/Polqt/ocealis/db/ocealis"
 	"github.com/Polqt/ocealis/internal/domain"
 	"github.com/Polqt/ocealis/internal/repository"
 	"github.com/Polqt/ocealis/util"
@@ -73,6 +75,11 @@ func (s *driftService) Tick(ctx context.Context) error {
 
 	for i := range activeBots {
 		b := &activeBots[i]
+		// Mystery Delay Bottles remain fixed at their Shoreline drop point.
+		// They start Drifting only after ReleaseScheduled makes them visible.
+		if b.Status != domain.BottleStatusDrifting || !b.IsReleased {
+			continue
+		}
 		if err := s.driftOne(ctx, b, func(e domain.BottleEvent) {
 			s.bc.BroadcastDrift(ws.DriftPayload{
 				BottleID:    e.BottleID,
@@ -99,25 +106,47 @@ func (s *driftService) driftOne(ctx context.Context, bottle *domain.Bottle, onDr
 
 	newLat, newLng := util.ApplyDrift(bottle.CurrentLat, bottle.CurrentLng, speed, bearing, DriftTickHours)
 
-	// Bug fix: drift events must be typed "drift", not "discovered".
-	event, err := s.events.Create(ctx, repository.CreateEventParams{
-		BottleID:  bottle.ID,
-		EventType: domain.EventTypeDrift,
-		Lat:       newLat,
-		Lng:       newLng,
-	})
-	if err != nil {
-		return fmt.Errorf("drift bottle %d: %w", bottle.ID, err)
+	var (
+		event   *domain.BottleEvent
+		updated *domain.Bottle
+	)
+	persist := func(bottles repository.BottleRepository, events repository.EventRepository) error {
+		var err error
+		updated, err = bottles.UpdatePosition(ctx, bottle.ID, newLat, newLng, domain.BottleStatusDrifting)
+		if err != nil {
+			return fmt.Errorf("update Bottle position: %w", err)
+		}
+		event, err = events.Create(ctx, repository.CreateEventParams{
+			BottleID:  bottle.ID,
+			EventType: domain.EventTypeDrift,
+			Lat:       newLat,
+			Lng:       newLng,
+		})
+		if err != nil {
+			return fmt.Errorf("record Drift Journey event: %w", err)
+		}
+		return nil
 	}
 
-	// Persist the new coordinates so the next tick starts from the right position.
-	_, _ = s.bottles.UpdatePosition(ctx, bottle.ID, newLat, newLng, domain.BottleStatusDrifting)
+	var err error
+	if s.pool == nil {
+		// Repository fakes exercise the public Tick seam without a database.
+		err = persist(s.bottles, s.events)
+	} else {
+		err = db.WithTransaction(ctx, s.pool, func(q *ocealis.Queries) error {
+			return persist(s.bottles.WithTx(q), s.events.WithTx(q))
+		})
+	}
+	if err != nil {
+		return fmt.Errorf("drift Bottle %d: %w", bottle.ID, err)
+	}
 
+	*bottle = *updated
 	if onDrift != nil {
 		onDrift(*event)
 	}
 
-	s.log.Info("bottle drifted", zap.Int32("bottle_id", bottle.ID), zap.Float64("lat", newLat), zap.Float64("lng", newLng))
+	s.log.Info("Bottle drifted", zap.Int32("bottle_id", bottle.ID), zap.Float64("lat", newLat), zap.Float64("lng", newLng))
 
 	return nil
 }
