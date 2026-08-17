@@ -47,9 +47,13 @@ export default function OceanMap() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
     const schedule = () => {
       clearTimeout(timer);
       timer = setTimeout(() => void refresh(map), 280);
+    };
+    const pollWhileVisible = () => {
+      if (document.visibilityState === "visible") void refresh(map);
     };
 
     map.on("load", () => {
@@ -84,6 +88,8 @@ export default function OceanMap() {
         },
       });
       void refresh(map);
+      pollTimer = setInterval(pollWhileVisible, 60_000);
+      document.addEventListener("visibilitychange", pollWhileVisible);
     });
 
     map.on("mouseenter", CORK_LAYER, () => {
@@ -103,6 +109,8 @@ export default function OceanMap() {
 
     onCleanup(() => {
       clearTimeout(timer);
+      clearInterval(pollTimer);
+      document.removeEventListener("visibilitychange", pollWhileVisible);
       oceanMap = undefined;
       map.remove();
     });
